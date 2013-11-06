@@ -19,7 +19,7 @@ import Jammit
 data Args = Args
   { searchTitle  :: String
   , searchArtist :: String
-  , sheetParts   :: [Part]
+  , sheetParts   :: [(Part, SheetType)]
   , pageLines    :: Maybe Int
   , jammitDir    :: Maybe String
   , printUsage   :: Bool
@@ -35,75 +35,32 @@ defaultArgs = Args
   , printUsage   = False
   }
 
-data Part
-  = NGuitar1
-  | TGuitar1
-  | NGuitar2
-  | TGuitar2
-  | NBass
-  | TBass
-  | NDrums
-  | NKeys1
-  | NKeys2
-  | NPiano
-  | NSynth
-  | NVocal
-  | NBVocals
-  deriving (Eq, Ord, Show, Read, Enum, Bounded)
-
-partToInstrument :: Part -> Instrument
-partToInstrument p = case p of
-  NGuitar1 -> Guitar
-  TGuitar1 -> Guitar
-  NGuitar2 -> Guitar
-  TGuitar2 -> Guitar
-  NBass    -> Bass
-  TBass    -> Bass
-  NDrums   -> Drums
-  NKeys1   -> Keyboard
-  NKeys2   -> Keyboard
-  NPiano   -> Keyboard
-  NSynth   -> Keyboard
-  NVocal   -> Vocal
-  NBVocals -> Vocal
-
-partGetTrack :: Part -> [Track] -> Maybe (String, Integer)
-partGetTrack p trks = let
-  suffix = if elem p [TGuitar1, TGuitar2, TBass] then "_jcft" else "_jcfn"
-  titles = case p of
-    NGuitar1 -> ["Guitar", "Guitar 1"]
-    TGuitar1 -> ["Guitar", "Guitar 1"]
-    NGuitar2 -> ["Guitar 2"]
-    TGuitar2 -> ["Guitar 2"]
-    NBass    -> ["Bass"]
-    TBass    -> ["Bass"]
-    NDrums   -> ["Drums"]
-    NKeys1   -> ["Keys", "Keys 1"]
-    NKeys2   -> ["Keys 2"]
-    NPiano   -> ["Piano"]
-    NSynth   -> ["Synth"]
-    NVocal   -> ["Vocal"]
-    NBVocals -> ["B Vocals"]
-  in case filter (maybe False (`elem` titles) . trackTitle) trks of
+partGetTrack :: (Part, SheetType) -> [Track] -> Maybe (String, Integer)
+partGetTrack (p, st) trks = let
+  suffix = case st of
+    Notation -> "_jcfn"
+    Tab      -> "_jcft"
+  match trk = maybe False (== p) $ titleToPart =<< trackTitle trk
+  in case filter match trks of
     []      -> Nothing
     trk : _ -> scoreSystemInterval trk >>= \ssi ->
       Just (identifier trk ++ suffix, ssi)
 
-charToPart :: Char -> Maybe Part
+charToPart :: Char -> Maybe (Part, SheetType)
 charToPart c = lookup c
-  [ ('g', NGuitar1)
-  , ('u', TGuitar1)
-  , ('G', NGuitar2)
-  , ('U', TGuitar2)
-  , ('b', NBass   )
-  , ('a', TBass   )
-  , ('d', NDrums  )
-  , ('k', NKeys1  )
-  , ('K', NKeys2  )
-  , ('p', NPiano  )
-  , ('s', NSynth  )
-  , ('v', NVocal  )
-  , ('V', NBVocals)
+  [ ('g', (PartGuitar1, Notation))
+  , ('u', (PartGuitar1, Tab     ))
+  , ('G', (PartGuitar2, Notation))
+  , ('U', (PartGuitar2, Tab     ))
+  , ('b', (PartBass   , Notation))
+  , ('a', (PartBass   , Tab     ))
+  , ('d', (PartDrums  , Notation))
+  , ('k', (PartKeys1  , Notation))
+  , ('K', (PartKeys2  , Notation))
+  , ('p', (PartPiano  , Notation))
+  , ('s', (PartSynth  , Notation))
+  , ('v', (PartVocal  , Notation))
+  , ('V', (PartBVocals, Notation))
   ]
 
 type Library = [(FilePath, Info, [Track])]
@@ -168,7 +125,7 @@ main = do
       insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
         [minBound..maxBound]
       maybeParts = map
-        (\p -> (, p) <$> lookup (partToInstrument p) insttrks)
+        (\(p, st) -> (, (p, st)) <$> lookup (partToInstrument p) insttrks)
         (sheetParts args)
   case sequence maybeParts of
     Nothing    -> putStrLn "Couldn't find a part."

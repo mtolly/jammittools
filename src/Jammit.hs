@@ -1,6 +1,10 @@
 {-# LANGUAGE ViewPatterns #-}
 module Jammit
 ( Instrument(..)
+, Part(..)
+, SheetType(..)
+, titleToPart
+, partToInstrument
 , Info(..)
 , Track(..)
 , loadInfo
@@ -32,6 +36,51 @@ import Data.PropertyList
 -- used in the "skillLevel" property.
 data Instrument = Guitar | Bass | Drums | Keyboard | Vocal
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
+
+data Part
+  = PartGuitar1
+  | PartGuitar2
+  | PartBass
+  | PartDrums
+  | PartKeys1
+  | PartKeys2
+  | PartPiano
+  | PartSynth
+  | PartVocal
+  | PartBVocals
+  deriving (Eq, Ord, Show, Read, Enum, Bounded)
+
+data SheetType = Notation | Tab
+  deriving (Eq, Ord, Show, Read, Enum, Bounded)
+
+titleToPart :: String -> Maybe Part
+titleToPart s = case s of
+  "Guitar"   -> Just PartGuitar1
+  "Guitar 1" -> Just PartGuitar1
+  "Guitar 2" -> Just PartGuitar2
+  "Bass"     -> Just PartBass
+  "Drums"    -> Just PartDrums
+  "Keys"     -> Just PartKeys1
+  "Keys 1"   -> Just PartKeys1
+  "Keys 2"   -> Just PartKeys2
+  "Piano"    -> Just PartPiano
+  "Synth"    -> Just PartSynth
+  "Vocal"    -> Just PartVocal
+  "B Vocals" -> Just PartBVocals
+  _          -> Nothing
+
+partToInstrument :: Part -> Instrument
+partToInstrument p = case p of
+  PartGuitar1 -> Guitar
+  PartGuitar2 -> Guitar
+  PartBass    -> Bass
+  PartDrums   -> Drums
+  PartKeys1   -> Keyboard
+  PartKeys2   -> Keyboard
+  PartPiano   -> Keyboard
+  PartSynth   -> Keyboard
+  PartVocal   -> Vocal
+  PartBVocals -> Vocal
 
 data Info = Info
   { album        :: String
