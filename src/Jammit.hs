@@ -15,7 +15,7 @@ module Jammit
 
 import Control.Applicative ((<$>), (<*>), liftA2)
 import Control.Arrow ((***))
-import Control.Monad (filterM)
+import Control.Monad (filterM, guard)
 
 import Data.Char (toLower, toUpper)
 import Text.Read (readMaybe)
@@ -23,11 +23,9 @@ import Data.Maybe (catMaybes)
 import qualified Data.Map as Map
 
 import System.FilePath ((</>))
-import System.Directory (getHomeDirectory, getDirectoryContents, doesFileExist)
+import System.Directory
+  (getHomeDirectory, getDirectoryContents, doesFileExist, doesDirectoryExist)
 import qualified System.Info as Info
-
-import System.IO.Error (isDoesNotExistError)
-import Control.Exception (throw, handle)
 
 import Data.PropertyList
 
@@ -196,24 +194,27 @@ loadTracks :: FilePath -> IO (Maybe [Track])
 loadTracks dir =
   listFromPropertyList <$> readXmlPropertyListFromFile (dir </> "tracks.plist")
 
+-- | Tries to find the top-level Jammit library directory.
 findJammitDir :: IO (Maybe FilePath)
 findJammitDir = case Info.os of
-  "mingw32" -> let
-    catchDoesNotExist :: IOError -> IO (Maybe a)
-    catchDoesNotExist e = if isDoesNotExistError e
-      then return Nothing
-      else throw e
-    in handle catchDoesNotExist $ do
-      home <- getHomeDirectory -- C:\Users\foo
-      let jmt = home </> "AppData" </> "Local" </> "Jammit"
-      jmtusers <- filter (`notElem` [".", ".."]) <$> getDirectoryContents jmt
-      return $ case jmtusers of
-        [user] -> Just $ jmt </> user
-        _      -> Nothing
+  "mingw32" -> do
+    home <- getHomeDirectory -- C:\Users\foo
+    let jmt = home </> "AppData" </> "Local" </> "Jammit"
+    b <- doesDirectoryExist jmt
+    return $ guard b >> Just jmt
   _ -> return Nothing -- TODO: OS X
 
+-- | Gets the contents of a directory without the @.@ and @..@ special paths,
+-- and adds the directory to the front of all the names to make absolute paths.
+lsAbsolute :: FilePath -> IO [FilePath]
+lsAbsolute dir =
+  map (dir </>) . filter (`notElem` [".", ".."]) <$> getDirectoryContents dir
+
+-- | Searches a directory and all subdirectories for folders containing a Jammit
+-- info file.
 songSubdirs :: FilePath -> IO [FilePath]
-songSubdirs jmt = do
-  sub <- filter (`notElem` [".", ".."]) <$> getDirectoryContents jmt
-  let hasInfo dir = doesFileExist $ dir </> "info.plist"
-  filterM hasInfo $ map (jmt </>) sub
+songSubdirs dir = do
+  isSong <- doesFileExist $ dir </> "info.plist"
+  let here = [dir | isSong]
+  subdirs <- lsAbsolute dir >>= filterM doesDirectoryExist
+  (here ++) . concat <$> mapM songSubdirs subdirs
