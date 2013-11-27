@@ -52,18 +52,18 @@ partGetTrack (p, st) trks = let
 charToPart :: Char -> Maybe (Part, SheetType)
 charToPart c = lookup c
   [ ('g', (PartGuitar1, Notation))
-  , ('u', (PartGuitar1, Tab     ))
-  , ('G', (PartGuitar2, Notation))
-  , ('U', (PartGuitar2, Tab     ))
+  , ('G', (PartGuitar1, Tab     ))
+  , ('r', (PartGuitar2, Notation))
+  , ('R', (PartGuitar2, Tab     ))
   , ('b', (PartBass   , Notation))
-  , ('a', (PartBass   , Tab     ))
+  , ('B', (PartBass   , Tab     ))
   , ('d', (PartDrums  , Notation))
   , ('k', (PartKeys1  , Notation))
-  , ('K', (PartKeys2  , Notation))
+  , ('y', (PartKeys2  , Notation))
   , ('p', (PartPiano  , Notation))
   , ('s', (PartSynth  , Notation))
   , ('v', (PartVocal  , Notation))
-  , ('V', (PartBVocals, Notation))
+  , ('x', (PartBVocals, Notation))
   ]
 
 type Library = [(FilePath, Info, [Track])]
@@ -85,7 +85,7 @@ argOpts =
   , Option ['a'] ["artist"] (ReqArg (\s a -> a { searchArtist = s }) "str")
     "search by song artist"
   , Option ['p'] ["parts"]
-    (ReqArg (\s a -> a { sheetParts = mapMaybe charToPart s }) "guGUbadkKpsvV")
+    (ReqArg (\s a -> a { sheetParts = mapMaybe charToPart s }) "gGrRbBdkypsvx")
     "parts to appear in music"
   , Option ['l'] ["lines"]
     (ReqArg (\s a -> a { pageLines = Just $ read s }) "int")
@@ -114,15 +114,15 @@ showLibrary lib = let
   titleArtists = sort $ nub [ (title info, artist info) | (_, info, _) <- lib ]
   charForPart p = case p of
     PartGuitar1 -> 'g'
-    PartGuitar2 -> 'G'
+    PartGuitar2 -> 'r'
     PartBass    -> 'b'
     PartDrums   -> 'd'
     PartKeys1   -> 'k'
-    PartKeys2   -> 'K'
+    PartKeys2   -> 'y'
     PartPiano   -> 'p'
     PartSynth   -> 's'
     PartVocal   -> 'v'
-    PartBVocals -> 'V'
+    PartBVocals -> 'x'
   partsFor ttl art = map charForPart $ sort $ concat
     [ mapMaybe (trackTitle >=> titleToPart) trks
     | (_, info, trks) <- lib
