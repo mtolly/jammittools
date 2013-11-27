@@ -6,10 +6,11 @@ import System.Process (readProcess, readProcessWithExitCode)
 import System.FilePath ((</>))
 import System.Exit (ExitCode(..), exitSuccess)
 import Control.Applicative ((<$>), liftA2)
-import Control.Monad (forM, forM_, void, when)
+import Control.Monad (forM, forM_, void, when, (>=>))
 import Data.Char
 import Data.Maybe
-import Data.List (sortBy, stripPrefix, isInfixOf, isPrefixOf, transpose)
+import Data.List
+  (sortBy, stripPrefix, isInfixOf, isPrefixOf, transpose, sort, nub)
 import Data.Ord (comparing)
 import System.Console.GetOpt
 import System.Environment (getArgs, lookupEnv, getProgName)
@@ -23,6 +24,7 @@ data Args = Args
   , pageLines    :: Maybe Int
   , jammitDir    :: Maybe String
   , printUsage   :: Bool
+  , showDatabase :: Bool
   } deriving (Eq, Ord, Show, Read)
 
 defaultArgs :: Args
@@ -33,6 +35,7 @@ defaultArgs = Args
   , pageLines    = Nothing
   , jammitDir    = Nothing
   , printUsage   = False
+  , showDatabase = False
   }
 
 partGetTrack :: (Part, SheetType) -> [Track] -> Maybe (String, Integer)
@@ -90,6 +93,9 @@ argOpts =
   , Option ['j'] ["jammit"]
     (ReqArg (\s a -> a { jammitDir = Just s }) "DIR")
     "location of Jammit library"
+  , Option ['d'] ["database"]
+    (NoArg $ \a -> a { showDatabase = True })
+    "display all songs in db"
   , Option ['?'] ["help"]
     (NoArg $ \a -> a { printUsage = True })
     "print usage info"
@@ -102,6 +108,37 @@ loadLibrary jmt = do
     maybeInfo <- loadInfo   d
     maybeTrks <- loadTracks d
     return $ liftA2 (\i t -> (d, i, t)) maybeInfo maybeTrks
+
+showLibrary :: Library -> String
+showLibrary lib = let
+  titleArtists = sort $ nub [ (title info, artist info) | (_, info, _) <- lib ]
+  charForPart p = case p of
+    PartGuitar1 -> 'g'
+    PartGuitar2 -> 'G'
+    PartBass    -> 'b'
+    PartDrums   -> 'd'
+    PartKeys1   -> 'k'
+    PartKeys2   -> 'K'
+    PartPiano   -> 'p'
+    PartSynth   -> 's'
+    PartVocal   -> 'v'
+    PartBVocals -> 'V'
+  partsFor ttl art = map charForPart $ sort $ concat
+    [ mapMaybe (trackTitle >=> titleToPart) trks
+    | (_, info, trks) <- lib
+    , (ttl, art) == (title info, artist info) ]
+  titleArtistParts = [ (t, a, partsFor t a) | (t, a) <- titleArtists ]
+  titleWidth  = (+1) $ max 5 $ maximum [ length t | (t, _, _) <- titleArtistParts ]
+  artistWidth = (+1) $ max 6 $ maximum [ length a | (_, a, _) <- titleArtistParts ]
+  partsWidth  =                maximum [ length p | (_, _, p) <- titleArtistParts ]
+  s `padTo` n = take n $ s ++ repeat ' '
+  padTAP (t, a, p) = concat
+    [ t `padTo` titleWidth
+    , a `padTo` artistWidth
+    , p ]
+  header = padTAP ("Title", "Artist", "Parts")
+  divider = replicate (titleWidth + artistWidth + partsWidth) '='
+  in unlines $ header : divider : map padTAP titleArtistParts
 
 main :: IO ()
 main = do
@@ -120,6 +157,9 @@ main = do
       fromMaybe (error "Couldn't find Jammit directory.") <$> findJammitDir
     Just j  -> return j
   db <- loadLibrary jmt
+  when (showDatabase args) $ do
+    putStr $ showLibrary db
+    exitSuccess
   let matches = searchBy title (searchTitle args) $
         searchBy artist (searchArtist args) db
       insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
