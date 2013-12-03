@@ -157,12 +157,12 @@ main = do
       fromMaybe (error "Couldn't find Jammit directory.") <$> findJammitDir
     Just j  -> return j
   db <- loadLibrary jmt
-  when (showDatabase args) $ do
-    putStr $ showLibrary db
-    exitSuccess
   let matches = searchBy title (searchTitle args) $
         searchBy artist (searchArtist args) db
-      insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
+  when (showDatabase args) $ do
+    putStr $ showLibrary matches
+    exitSuccess
+  let insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
         [minBound..maxBound]
       maybeParts = map
         (\(p, st) -> (, (p, st)) <$> lookup (partToInstrument p) insttrks)
