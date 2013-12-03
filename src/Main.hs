@@ -1,21 +1,21 @@
 {-# LANGUAGE TupleSections #-}
 module Main (main) where
 
-import System.Directory
-import System.Process (readProcess, readProcessWithExitCode)
+import qualified System.Directory as Dir
 import System.FilePath ((</>))
-import System.Exit (ExitCode(..), exitSuccess)
+import System.Exit (exitSuccess)
 import Control.Applicative ((<$>), liftA2)
-import Control.Monad (forM, forM_, void, when, (>=>))
-import Data.Char
-import Data.Maybe
+import Control.Monad (forM, forM_, when, (>=>))
+import Data.Char (toLower, isDigit)
+import Data.Maybe (mapMaybe, catMaybes, fromMaybe, fromJust)
 import Data.List
   (sortBy, stripPrefix, isInfixOf, isPrefixOf, transpose, sort, nub)
 import Data.Ord (comparing)
 import System.Console.GetOpt
-import System.Environment (getArgs, lookupEnv, getProgName)
-import qualified System.Info as Info
+import System.Environment (getArgs, getProgName)
+
 import Jammit
+import ImageMagick
 
 data Args = Args
   { searchTitle  :: String
@@ -181,15 +181,15 @@ main = do
 
 run :: [(FilePath, (String, Integer))] -> Int -> FilePath -> IO ()
 run fptrks lns fout = do
-  pwd <- getCurrentDirectory
-  tmp <- (</> "jammitsheet") <$> getTemporaryDirectory
-  createDirectoryIfMissing True tmp
-  setCurrentDirectory tmp
+  pwd <- Dir.getCurrentDirectory
+  tmp <- (</> "jammitsheet") <$> Dir.getTemporaryDirectory
+  Dir.createDirectoryIfMissing True tmp
+  Dir.setCurrentDirectory tmp
   forM_ fptrks $ \(fp, trk) -> do
     let ident = fst trk
     connectVertical [fp </> (ident ++ "*")] (ident ++ ".png")
     splitVertical (snd trk) (ident ++ ".png") (ident ++ "_line.png")
-  ls <- getDirectoryContents "."
+  ls <- Dir.getDirectoryContents "."
   let trks = map snd fptrks
       trkLns = flip map trks $ \trk -> sortBy (comparing getNumber) $
         filter ((fst trk ++ "_line") `isPrefixOf`) ls
@@ -205,51 +205,6 @@ getNumber = read . reverse . takeWhile isDigit .
 
 show4 :: Int -> String
 show4 i = let s = show i in replicate (4 - length s) '0' ++ s
-
--- | Find an ImageMagick binary, because the names are way too generic, and
--- "convert" is both an ImageMagick program and a Windows built-in utility.
-imageMagick :: String -> IO (Maybe String)
-imageMagick cmd = do
-  (code, _, _) <- readProcessWithExitCode cmd ["-version"] ""
-  case code of
-    ExitSuccess -> return $ Just cmd
-    _ -> case Info.os of
-      "mingw32" -> firstJustM $
-        flip map ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"] $ \env ->
-          lookupEnv env >>= \var -> case var of
-            Nothing -> return Nothing
-            Just pf
-              ->  fmap (\im -> pf </> im </> cmd)
-              .   listToMaybe
-              .   filter ("ImageMagick" `isPrefixOf`)
-              <$> getDirectoryContents pf
-      _ -> return Nothing
-
--- | Only runs actions until the first that gives 'Just'.
-firstJustM :: (Monad m) => [m (Maybe a)] -> m (Maybe a)
-firstJustM [] = return Nothing
-firstJustM (mx : xs) = mx >>= \x -> case x of
-  Nothing -> firstJustM xs
-  Just y  -> return $ Just y
-
--- | Uses ImageMagick to stick images together vertically.
-connectVertical :: [FilePath] -> FilePath -> IO ()
-connectVertical fins fout = do
-  cmd <- fromMaybe "montage" <$> imageMagick "montage"
-  void $ readProcess cmd
-    (["-geometry", "100%", "-tile", "1x"] ++ fins ++ [fout]) ""
-
--- | Uses ImageMagick to split an image into chunks of a given height.
-splitVertical :: Integer -> FilePath -> FilePath -> IO ()
-splitVertical i fin fout = do
-  cmd <- fromMaybe "convert" <$> imageMagick "convert"
-  void $ readProcess cmd ["-crop", "x" ++ show i, fin, fout] ""
-
--- | Uses ImageMagick to join several images into pages of a PDF.
-joinPages :: [FilePath] -> FilePath -> IO ()
-joinPages fins fout = do
-  cmd <- fromMaybe "convert" <$> imageMagick "convert"
-  void $ readProcess cmd (fins ++ [fout]) ""
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
