@@ -103,8 +103,8 @@ data Info = Info
 instance PropertyListItem Info where
 
   fromPropertyList pl = fromPlDict pl >>= \dict -> Info
-    <$> (Map.lookup "artist"       dict >>= fromPlString)
-    <*> (Map.lookup "album"        dict >>= fromPlString)
+    <$> (Map.lookup "album"        dict >>= fromPlString)
+    <*> (Map.lookup "artist"       dict >>= fromPlString)
     <*> (Map.lookup "bpm"          dict >>= fromPlString)
     <*> (Map.lookup "copyright"    dict >>= fromPlString)
     <*> (Map.lookup "countInBeats" dict >>= fromPlInt   )
