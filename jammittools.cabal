@@ -4,18 +4,20 @@ License:            GPL
 Author:             Michael Tolly
 Maintainer:         miketolly@gmail.com
 Build-Type:         Simple
-Cabal-version:      >= 1.8
+Cabal-Version:      >= 1.8
 Category:           Sound
 
 Executable jammittools
   Main-Is:          Main.hs
-  hs-source-dirs:   src
+  Hs-Source-Dirs:   src
   Other-Modules:    Jammit
                     ImageMagick
+                    AIFC2WAV
   Build-Depends:    base >= 4 && < 5
                     , property-list == 0.1.*
                     , directory     == 1.2.*
                     , filepath      == 1.3.*
                     , containers    == 0.5.*
                     , process       == 1.1.*
-  ghc-options:      -Wall
+  Ghc-Options:      -Wall
+  C-Sources:        c/aifc2wav-5.1.c

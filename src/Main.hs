@@ -16,6 +16,8 @@ import System.Environment (getArgs, getProgName)
 
 import Jammit
 import ImageMagick
+import AIFC2WAV
+import Sox
 
 data Args = Args
   { searchTitle  :: String

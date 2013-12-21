@@ -22,6 +22,7 @@ import Text.Read (readMaybe)
 import Data.Maybe (catMaybes)
 import qualified Data.Map as Map
 
+import System.Environment (lookupEnv)
 import System.FilePath ((</>))
 import System.Directory
   (getHomeDirectory, getDirectoryContents, doesFileExist, doesDirectoryExist)
@@ -198,8 +199,11 @@ loadTracks dir =
 findJammitDir :: IO (Maybe FilePath)
 findJammitDir = case Info.os of
   "mingw32" -> do
-    home <- getHomeDirectory -- C:\Users\foo
-    let jmt = home </> "AppData" </> "Local" </> "Jammit"
+    v <- lookupEnv "LOCALAPPDATA"
+    local <- case v of
+      Just l  -> return l
+      Nothing -> (\h -> h </> "AppData" </> "Local") <$> getHomeDirectory 
+    let jmt = local </> "Jammit"
     b <- doesDirectoryExist jmt
     return $ guard b >> Just jmt
   _ -> return Nothing -- TODO: OS X
