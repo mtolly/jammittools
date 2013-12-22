@@ -178,7 +178,7 @@ main = do
           systemHeight = sum $ map (snd . snd) real
           pageHeight = 724 / 8.5 * 11 :: Double
           defaultLines = round $ pageHeight / fromIntegral systemHeight
-          in run real (fromMaybe defaultLines $ pageLines args) fout
+          in run real (max 1 $ fromMaybe defaultLines $ pageLines args) fout
         Nothing   -> putStrLn "Couldn't find a track within a part."
 
 run :: [(FilePath, (String, Integer))] -> Int -> FilePath -> IO ()
