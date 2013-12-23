@@ -3,9 +3,8 @@ module Main (main) where
 
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
-import System.Exit (exitSuccess)
 import Control.Applicative ((<$>), liftA2)
-import Control.Monad (forM, forM_, when, (>=>))
+import Control.Monad (forM, forM_, (>=>))
 import Data.Char (toLower, isDigit)
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe, fromJust)
 import Data.List
@@ -22,22 +21,29 @@ import Sox
 data Args = Args
   { searchTitle  :: String
   , searchArtist :: String
-  , sheetParts   :: [(Part, SheetType)]
+  , selectParts  :: String
+  , rejectParts  :: String
   , pageLines    :: Maybe Int
-  , jammitDir    :: Maybe String
-  , printUsage   :: Bool
-  , showDatabase :: Bool
+  , jammitDir    :: Maybe FilePath
+  , function     :: Function
   } deriving (Eq, Ord, Show, Read)
+
+data Function
+  = PrintUsage
+  | ShowDatabase
+  | ExportSheet FilePath
+  | ExportAudio FilePath
+  deriving (Eq, Ord, Show, Read)
 
 defaultArgs :: Args
 defaultArgs = Args
   { searchTitle  = ""
   , searchArtist = ""
-  , sheetParts   = []
+  , selectParts  = ""
+  , rejectParts  = ""
   , pageLines    = Nothing
   , jammitDir    = Nothing
-  , printUsage   = False
-  , showDatabase = False
+  , function     = PrintUsage
   }
 
 partGetTrack :: (Part, SheetType) -> [Track] -> Maybe (String, Integer)
@@ -68,6 +74,30 @@ charToPart c = lookup c
   , ('x', (PartBVocals, Notation))
   ]
 
+data AudioPart
+  = Only Part
+  | Without Instrument
+  deriving (Eq, Ord, Show, Read)
+
+charToAudioPart :: Char -> Maybe AudioPart
+charToAudioPart c = lookup c
+  [ ('g', Only PartGuitar1)
+  , ('r', Only PartGuitar2)
+  , ('b', Only PartBass   )
+  , ('d', Only PartDrums  )
+  , ('k', Only PartKeys1  )
+  , ('y', Only PartKeys2  )
+  , ('p', Only PartPiano  )
+  , ('s', Only PartSynth  )
+  , ('v', Only PartVocal  )
+  , ('x', Only PartBVocals)
+  , ('G', Without Guitar  )
+  , ('B', Without Bass    )
+  , ('D', Without Drums   )
+  , ('K', Without Keyboard)
+  , ('V', Without Vocal   )
+  ]
+
 type Library = [(FilePath, Info, [Track])]
 
 searchBy :: (Info -> String) -> String -> Library -> Library
@@ -84,23 +114,32 @@ argOpts :: [OptDescr (Args -> Args)]
 argOpts =
   [ Option ['t'] ["title"] (ReqArg (\s a -> a { searchTitle = s }) "str")
     "search by song title"
-  , Option ['a'] ["artist"] (ReqArg (\s a -> a { searchArtist = s }) "str")
+  , Option ['r'] ["artist"] (ReqArg (\s a -> a { searchArtist = s }) "str")
     "search by song artist"
-  , Option ['p'] ["parts"]
-    (ReqArg (\s a -> a { sheetParts = mapMaybe charToPart s }) "gGrRbBdkypsvx")
-    "parts to appear in music"
+  , Option ['y'] ["yesparts"]
+    (ReqArg (\s a -> a { selectParts = s }) "parts")
+    "parts to appear in sheet music or audio"
+  , Option ['n'] ["noparts"]
+    (ReqArg (\s a -> a { rejectParts = s }) "parts")
+    "parts to subtract (add inverted) from audio"
   , Option ['l'] ["lines"]
     (ReqArg (\s a -> a { pageLines = Just $ read s }) "int")
     "number of systems per page"
   , Option ['j'] ["jammit"]
-    (ReqArg (\s a -> a { jammitDir = Just s }) "DIR")
+    (ReqArg (\s a -> a { jammitDir = Just s }) "directory")
     "location of Jammit library"
-  , Option ['d'] ["database"]
-    (NoArg $ \a -> a { showDatabase = True })
-    "display all songs in db"
   , Option ['?'] ["help"]
-    (NoArg $ \a -> a { printUsage = True })
-    "print usage info"
+    (NoArg $ \a -> a { function = PrintUsage })
+    "function: print usage info"
+  , Option ['d'] ["database"]
+    (NoArg $ \a -> a { function = ShowDatabase })
+    "function: display all songs in db"
+  , Option ['s'] ["sheet"]
+    (ReqArg (\s a -> a { function = ExportSheet s }) "file")
+    "function: export sheet music"
+  , Option ['a'] ["audio"]
+    (ReqArg (\s a -> a { function = ExportAudio s }) "file")
+    "function: export audio"
   ]
 
 loadLibrary :: FilePath -> IO Library
@@ -142,44 +181,48 @@ showLibrary lib = let
   divider = replicate (titleWidth + artistWidth + partsWidth) '='
   in unlines $ header : divider : map padTAP titleArtistParts
 
-main :: IO ()
-main = do
-  (fs, nonopts, _) <- getOpt Permute argOpts <$> getArgs
-  let args = foldr ($) defaultArgs fs
-      fout = case nonopts of
-        f : _ -> f
-        []    -> "jammit_out.pdf"
-  when (printUsage args) $ do
-    prog <- getProgName
-    let header = "Usage: " ++ prog ++ " [options] out.pdf"
-    putStr $ usageInfo header argOpts
-    exitSuccess
+searchResults :: Args -> IO Library
+searchResults args = do
   jmt <- case jammitDir args of
     Nothing ->
       fromMaybe (error "Couldn't find Jammit directory.") <$> findJammitDir
     Just j  -> return j
   db <- loadLibrary jmt
-  let matches = searchBy title (searchTitle args) $
-        searchBy artist (searchArtist args) db
-  when (showDatabase args) $ do
-    putStr $ showLibrary matches
-    exitSuccess
-  let insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
-        [minBound..maxBound]
-      maybeParts = map
-        (\(p, st) -> (, (p, st)) <$> lookup (partToInstrument p) insttrks)
-        (sheetParts args)
-  case sequence maybeParts of
-    Nothing    -> putStrLn "Couldn't find a part."
-    Just parts -> let
-      realTrk ((fp, _, trks), p) = (fp,) <$> partGetTrack p trks
-      in case mapM realTrk parts of
-        Just real -> let
-          systemHeight = sum $ map (snd . snd) real
-          pageHeight = 724 / 8.5 * 11 :: Double
-          defaultLines = round $ pageHeight / fromIntegral systemHeight
-          in run real (max 1 $ fromMaybe defaultLines $ pageLines args) fout
-        Nothing   -> putStrLn "Couldn't find a track within a part."
+  return $
+    searchBy title (searchTitle args) $ searchBy artist (searchArtist args) db
+
+main :: IO ()
+main = do
+  (fs, _, _) <- getOpt Permute argOpts <$> getArgs
+  let args = foldr ($) defaultArgs fs
+  case function args of
+    PrintUsage -> do
+      prog <- getProgName
+      let header = "Usage: " ++ prog ++ " [options]"
+      putStr $ usageInfo header argOpts
+    ShowDatabase -> do
+      matches <- searchResults args
+      putStr $ showLibrary matches
+    ExportAudio fout -> undefined
+    ExportSheet fout -> do
+      matches <- searchResults args
+      let insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
+            [minBound..maxBound]
+          sheetParts = mapMaybe charToPart $ selectParts args
+          maybeParts = map
+            (\(p, st) -> (, (p, st)) <$> lookup (partToInstrument p) insttrks)
+            sheetParts
+      case sequence maybeParts of
+        Nothing    -> putStrLn "Couldn't find a part."
+        Just parts -> let
+          realTrk ((fp, _, trks), p) = (fp,) <$> partGetTrack p trks
+          in case mapM realTrk parts of
+            Just real -> let
+              systemHeight = sum $ map (snd . snd) real
+              pageHeight = 724 / 8.5 * 11 :: Double
+              defaultLines = round $ pageHeight / fromIntegral systemHeight
+              in run real (max 1 $ fromMaybe defaultLines $ pageLines args) fout
+            Nothing   -> putStrLn "Couldn't find a track within a part."
 
 run :: [(FilePath, (String, Integer))] -> Int -> FilePath -> IO ()
 run fptrks lns fout = do
