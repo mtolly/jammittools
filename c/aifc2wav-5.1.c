@@ -47,6 +47,16 @@ static int step_table[89] = {
     15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
 };
 
+// onyxite: these save the last sample in each packet
+static short predictorLeft = 0;
+static short predictorRight = 0;
+
+void reset_predictors()
+{
+  predictorLeft = 0;
+  predictorRight = 0;
+}
+
 /* parse a chunk - waits a 34 bytes buffer, returns a little endian buffer */
 void decode_chunk(unsigned char *input, unsigned char *output, int channel)
 {
@@ -58,10 +68,6 @@ void decode_chunk(unsigned char *input, unsigned char *output, int channel)
   int diff;
   int sign, delta;
   short step;
-
-  // onyxite: these save the last sample in each packet
-  static short predictorLeft = 0;
-  static short predictorRight = 0;
 
   d = *input++;
   predictor=d << 8;
