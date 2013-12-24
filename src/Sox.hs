@@ -3,9 +3,10 @@ module Sox
 , render
 ) where
 
-import Control.Monad (void)
 import System.Process (readProcess)
-import Data.String (IsString(..))
+import System.IO.Temp (openTempFile)
+import System.IO (hClose)
+import Data.Monoid (Monoid(..))
 
 data Audio
   = Silence
@@ -14,13 +15,9 @@ data Audio
   | Mix Audio Audio
   deriving (Eq, Ord, Show, Read)
 
-instance Num Audio where
-  (+)           = Mix
-  negate        = Invert
-  fromInteger 0 = Silence
-
-instance IsString Audio where
-  fromString = File
+instance Monoid Audio where
+  mappend = Mix
+  mempty  = Silence
 
 mixedFiles :: Audio -> ([FilePath], [FilePath])
 mixedFiles Silence    = ([], [])
@@ -31,13 +28,20 @@ mixedFiles (Mix  x y) = let
   (c, d) = mixedFiles y
   in (a ++ c, b ++ d)
 
-render :: Audio -> FilePath -> IO ()
-render aud fout = let
-  (norm, inv) = mixedFiles aud
-  makeNormal x = ["-v", "1", x]
-  makeInvert x = ["-v", "-1", x]
-  args = ["--combine", "mix"]
-    ++ concatMap makeNormal norm
-    ++ concatMap makeInvert inv
-    ++ [fout]
-  in void $ readProcess "sox" args ""
+render :: Audio -> FilePath -> IO FilePath
+render aud tempdir = do
+  (fout, h) <- openTempFile tempdir "render.wav"
+  hClose h
+  let (norm, inv) = mixedFiles aud
+      makeNormal x = ["-v", "1", x]
+      makeInvert x = ["-v", "-1", x]
+      args = case (norm, inv) of
+        ([] , [] ) -> ["-n", fout, "trim", "0", "0"]
+        ([x], [] ) -> makeNormal x ++ [fout]
+        ([] , [x]) -> makeInvert x ++ [fout]
+        (_  , _  ) -> ["--combine", "mix"]
+          ++ concatMap makeNormal norm
+          ++ concatMap makeInvert inv
+          ++ [fout]
+  _ <- readProcess "sox" args ""
+  return fout

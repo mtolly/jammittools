@@ -11,6 +11,7 @@ import Data.List (isInfixOf, transpose, sort, nub)
 import System.Console.GetOpt
 import System.Environment (getArgs, getProgName)
 import System.IO.Temp (withSystemTempDirectory)
+import Data.Monoid (mconcat)
 
 import Jammit
 import ImageMagick
@@ -86,12 +87,6 @@ type Library = [(FilePath, Info, [Track])]
 searchBy :: (Info -> String) -> String -> Library -> Library
 searchBy f str = let str' = map toLower str in
   filter $ \(_, info, _) -> str' `isInfixOf` map toLower (f info)
-
-findInstrument :: Instrument -> Library -> Maybe (FilePath, Info, [Track])
-findInstrument inst lib =
-  case filter (\(_, info, _) -> instrument info == inst) lib of
-    [song] -> Just song
-    _      -> Nothing
 
 argOpts :: [OptDescr (Args -> Args)]
 argOpts =
@@ -217,14 +212,17 @@ main = do
       putStr $ showLibrary matches
     ExportAudio fout -> do
       matches <- searchResults args
-      let insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
-            [minBound .. maxBound]
-            :: [(Instrument, (FilePath, Info, [Track]))]
-          yes = mapMaybe charToAudioPart $ selectParts args
-            :: [AudioPart]
-          no = mapMaybe charToAudioPart $ rejectParts args
-            :: [AudioPart]
-      undefined
+      let yes = mapM (`findAudioPart` matches) $ mapMaybe charToAudioPart $ selectParts args
+          no = mapM (`findAudioPart` matches) $ mapMaybe charToAudioPart $ rejectParts args
+      case (fmap (map $ uncurry getAudioFile) yes, fmap (map $ uncurry getAudioFile) no) of
+        (Left  err   , _           ) -> error err
+        (_           , Left  err   ) -> error err
+        (Right yaifcs, Right naifcs) ->
+          withSystemTempDirectory "jammitaudio" $ \tmp -> do
+            ywavs <- map File <$> mapM (`aifcToWav` tmp) yaifcs
+            nwavs <- map File <$> mapM (`aifcToWav` tmp) naifcs
+            wav <- render (Mix (mconcat ywavs) (Invert $ mconcat nwavs)) tmp
+            Dir.copyFile wav fout
     ExportSheet fout -> do
       matches <- searchResults args
       let sheetParts = mapMaybe charToPart $ selectParts args
