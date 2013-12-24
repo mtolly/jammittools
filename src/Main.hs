@@ -2,9 +2,9 @@
 module Main (main) where
 
 import qualified System.Directory as Dir
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeFileName)
 import Control.Applicative ((<$>), liftA2)
-import Control.Monad (forM, forM_, (>=>))
+import Control.Monad (forM, forM_, (>=>), guard)
 import Data.Char (toLower, isDigit)
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe, fromJust)
 import Data.List
@@ -186,6 +186,35 @@ searchResults args = do
   return $
     searchBy title (searchTitle args) $ searchBy artist (searchArtist args) db
 
+findAudioPart :: AudioPart -> Library -> Either String (FilePath, Track)
+findAudioPart ap lib = let
+  inst = audioPartToInstrument ap
+  filtered = do
+    (fp, i, trks) <- lib
+    guard $ instrument i == inst
+    trk <- trks
+    guard $ (trackTitle trk >>= \t -> titleToAudioPart t inst) == Just ap
+    return (fp, trk)
+  in case filtered of
+    [one] -> Right one
+    []    -> Left $ "No results for " ++ show ap
+    _     -> Left $ "More than one result for " ++ show ap
+
+findSheetPart
+  :: (Part, SheetType) -> Library -> Either String (FilePath, Track, SheetType)
+findSheetPart (p, st) lib =
+  (\(fp, trk) -> (fp, trk, st)) <$> findAudioPart (Only p) lib
+
+getAudioFile :: FilePath -> Track -> FilePath
+getAudioFile fp trk = fp </> (identifier trk ++ "_jcfx")
+
+getSheetFile :: FilePath -> Track -> SheetType -> (FilePath, Integer)
+getSheetFile fp trk st = let
+  suffix = case st of
+    Notation -> "_jcfn"
+    Tab      -> "_jcft"
+  in (fp </> (identifier trk ++ suffix), fromMaybe 0 $ scoreSystemInterval trk)
+
 main :: IO ()
 main = do
   (fs, _, _) <- getOpt Permute argOpts <$> getArgs
@@ -210,40 +239,31 @@ main = do
       undefined
     ExportSheet fout -> do
       matches <- searchResults args
-      let insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
-            [minBound .. maxBound]
-            :: [(Instrument, (FilePath, Info, [Track]))]
-          sheetParts = mapMaybe charToPart $ selectParts args
+      let sheetParts = mapMaybe charToPart $ selectParts args
             :: [(Part, SheetType)]
-          maybeParts = map
-            (\(p, st) -> (, (p, st)) <$> lookup (partToInstrument p) insttrks)
-            sheetParts
-      case sequence maybeParts of
-        Nothing    -> putStrLn "Couldn't find a part."
-        Just parts -> let
-          realTrk ((fp, _, trks), p) = (fp,) <$> partGetTrack p trks
-          in case mapM realTrk parts of
-            Just real -> let
-              systemHeight = sum $ map (snd . snd) real
-              pageHeight = 724 / 8.5 * 11 :: Double
-              defaultLines = round $ pageHeight / fromIntegral systemHeight
-              in run real (max 1 $ fromMaybe defaultLines $ pageLines args) fout
-            Nothing   -> putStrLn "Couldn't find a track within a part."
+      case mapM (`findSheetPart` matches) sheetParts of
+        Left  err   -> error err
+        Right parts -> let
+          uncurry3 f (x, y, z) = f x y z
+          realTrks = map (uncurry3 getSheetFile) parts
+          systemHeight = sum $ map snd realTrks
+          pageHeight = 724 / 8.5 * 11 :: Double
+          defaultLines = round $ pageHeight / fromIntegral systemHeight
+          in run realTrks (max 1 $ fromMaybe defaultLines $ pageLines args) fout
 
-run :: [(FilePath, (String, Integer))] -> Int -> FilePath -> IO ()
-run fptrks lns fout = do
+run :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
+run trks lns fout = do
   pwd <- Dir.getCurrentDirectory
   tmp <- (</> "jammitsheet") <$> Dir.getTemporaryDirectory
   Dir.createDirectoryIfMissing True tmp
   Dir.setCurrentDirectory tmp
-  forM_ fptrks $ \(fp, trk) -> do
-    let ident = fst trk
-    connectVertical [fp </> (ident ++ "*")] (ident ++ ".png")
-    splitVertical (snd trk) (ident ++ ".png") (ident ++ "_line.png")
+  forM_ trks $ \(fp, ht) -> do
+    let justFile = takeFileName fp
+    connectVertical [fp ++ "*"] (justFile ++ ".png")
+    splitVertical ht (justFile ++ ".png") (justFile ++ "_line.png")
   ls <- Dir.getDirectoryContents "."
-  let trks = map snd fptrks
-      trkLns = flip map trks $ \trk -> sortBy (comparing getNumber) $
-        filter ((fst trk ++ "_line") `isPrefixOf`) ls
+  let trkLns = flip map trks $ \trk -> sortBy (comparing getNumber) $
+        filter (takeFileName (fst trk ++ "_line") `isPrefixOf`) ls
       pages = map concat $ chunksOf lns $ transpose trkLns
   forM_ (zip [0..] pages) $ \(i, fps) ->
     connectVertical fps $ "page_" ++ show4 i ++ ".png"
