@@ -23,8 +23,8 @@ aifcToWav aifc tempdir = do
     withCString aifc $ \aifcC ->
       withCString wav $ \wavC ->
         withArrayLen [progC, aifcC, wavC] $ \n v -> do
-        reset_predictors
-        code <- aifc2wav_main (fromIntegral n) v
-        if code == 0
-          then return wav
-          else error $ "aifcToWav: returned " ++ show code
+          reset_predictors
+          code <- aifc2wav_main (fromIntegral n) v
+          if code == 0
+            then return wav
+            else error $ "aifcToWav: returned " ++ show code
