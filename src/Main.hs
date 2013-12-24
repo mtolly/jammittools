@@ -74,11 +74,6 @@ charToPart c = lookup c
   , ('x', (PartBVocals, Notation))
   ]
 
-data AudioPart
-  = Only Part
-  | Without Instrument
-  deriving (Eq, Ord, Show, Read)
-
 charToAudioPart :: Char -> Maybe AudioPart
 charToAudioPart c = lookup c
   [ ('g', Only PartGuitar1)
@@ -203,12 +198,23 @@ main = do
     ShowDatabase -> do
       matches <- searchResults args
       putStr $ showLibrary matches
-    ExportAudio fout -> undefined
+    ExportAudio fout -> do
+      matches <- searchResults args
+      let insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
+            [minBound .. maxBound]
+            :: [(Instrument, (FilePath, Info, [Track]))]
+          yes = mapMaybe charToAudioPart $ selectParts args
+            :: [AudioPart]
+          no = mapMaybe charToAudioPart $ rejectParts args
+            :: [AudioPart]
+      undefined
     ExportSheet fout -> do
       matches <- searchResults args
       let insttrks = mapMaybe (\inst -> (inst,) <$> findInstrument inst matches)
-            [minBound..maxBound]
+            [minBound .. maxBound]
+            :: [(Instrument, (FilePath, Info, [Track]))]
           sheetParts = mapMaybe charToPart $ selectParts args
+            :: [(Part, SheetType)]
           maybeParts = map
             (\(p, st) -> (, (p, st)) <$> lookup (partToInstrument p) insttrks)
             sheetParts

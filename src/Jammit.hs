@@ -2,9 +2,12 @@
 module Jammit
 ( Instrument(..)
 , Part(..)
+, AudioPart(..)
 , SheetType(..)
 , titleToPart
+, titleToAudioPart
 , partToInstrument
+, audioPartToInstrument
 , Info(..)
 , Track(..)
 , loadInfo
@@ -49,6 +52,11 @@ data Part
   | PartBVocals
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
+data AudioPart
+  = Only Part
+  | Without Instrument
+  deriving (Eq, Ord, Show, Read)
+
 data SheetType = Notation | Tab
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
@@ -68,6 +76,10 @@ titleToPart s = case s of
   "B Vocals" -> Just PartBVocals
   _          -> Nothing
 
+titleToAudioPart :: String -> Instrument -> Maybe AudioPart
+titleToAudioPart "Band" i = Just $ Without i
+titleToAudioPart s      _ = Only <$> titleToPart s
+
 partToInstrument :: Part -> Instrument
 partToInstrument p = case p of
   PartGuitar1 -> Guitar
@@ -80,6 +92,10 @@ partToInstrument p = case p of
   PartSynth   -> Keyboard
   PartVocal   -> Vocal
   PartBVocals -> Vocal
+
+audioPartToInstrument :: AudioPart -> Instrument
+audioPartToInstrument (Only    p) = partToInstrument p
+audioPartToInstrument (Without i) = i
 
 data Info = Info
   { album        :: String
