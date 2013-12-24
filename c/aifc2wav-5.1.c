@@ -207,6 +207,9 @@ int get_type(FILE *f, long *size)
   if (!strncmp((char*)buf, "SSND", 4))
     return SSND;
 
+  if (!strncmp((char*)buf, "FLLR", 4))
+    return -2;
+
   buf[4] = 0;
   fprintf(stderr, "warning: unhandled chunk %s (size=%ld)\n", buf, *size);
 
