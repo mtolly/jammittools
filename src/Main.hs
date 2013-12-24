@@ -2,16 +2,15 @@
 module Main (main) where
 
 import qualified System.Directory as Dir
-import System.FilePath ((</>), takeFileName)
+import System.FilePath ((</>))
 import Control.Applicative ((<$>), liftA2)
-import Control.Monad (forM, forM_, (>=>), guard)
-import Data.Char (toLower, isDigit)
-import Data.Maybe (mapMaybe, catMaybes, fromMaybe, fromJust)
-import Data.List
-  (sortBy, stripPrefix, isInfixOf, isPrefixOf, transpose, sort, nub)
-import Data.Ord (comparing)
+import Control.Monad (forM, (>=>), guard)
+import Data.Char (toLower)
+import Data.Maybe (mapMaybe, catMaybes, fromMaybe)
+import Data.List (isInfixOf, transpose, sort, nub)
 import System.Console.GetOpt
 import System.Environment (getArgs, getProgName)
+import System.IO.Temp (withSystemTempDirectory)
 
 import Jammit
 import ImageMagick
@@ -45,17 +44,6 @@ defaultArgs = Args
   , jammitDir    = Nothing
   , function     = PrintUsage
   }
-
-partGetTrack :: (Part, SheetType) -> [Track] -> Maybe (String, Integer)
-partGetTrack (p, st) trks = let
-  suffix = case st of
-    Notation -> "_jcfn"
-    Tab      -> "_jcft"
-  match trk = maybe False (== p) $ titleToPart =<< trackTitle trk
-  in case filter match trks of
-    []      -> Nothing
-    trk : _ -> scoreSystemInterval trk >>= \ssi ->
-      Just (identifier trk ++ suffix, ssi)
 
 charToPart :: Char -> Maybe (Part, SheetType)
 charToPart c = lookup c
@@ -252,30 +240,14 @@ main = do
           in run realTrks (max 1 $ fromMaybe defaultLines $ pageLines args) fout
 
 run :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
-run trks lns fout = do
-  pwd <- Dir.getCurrentDirectory
-  tmp <- (</> "jammitsheet") <$> Dir.getTemporaryDirectory
-  Dir.createDirectoryIfMissing True tmp
-  Dir.setCurrentDirectory tmp
-  forM_ trks $ \(fp, ht) -> do
-    let justFile = takeFileName fp
-    connectVertical [fp ++ "*"] (justFile ++ ".png")
-    splitVertical ht (justFile ++ ".png") (justFile ++ "_line.png")
-  ls <- Dir.getDirectoryContents "."
-  let trkLns = flip map trks $ \trk -> sortBy (comparing getNumber) $
-        filter (takeFileName (fst trk ++ "_line") `isPrefixOf`) ls
-      pages = map concat $ chunksOf lns $ transpose trkLns
-  forM_ (zip [0..] pages) $ \(i, fps) ->
-    connectVertical fps $ "page_" ++ show4 i ++ ".png"
-  let pageNums = zipWith (\i _ -> "page_" ++ show4 i ++ ".png") [0..] pages
-  joinPages pageNums $ pwd </> fout
-
-getNumber :: String -> Int
-getNumber = read . reverse . takeWhile isDigit .
-  fromJust . stripPrefix "gnp." . reverse
-
-show4 :: Int -> String
-show4 i = let s = show i in replicate (4 - length s) '0' ++ s
+run trks lns fout = withSystemTempDirectory "jammitsheet" $ \tmp -> do
+  trkLns <- forM trks $ \(fp, ht) -> do
+    cnct <- connectVertical [fp ++ "*"] tmp
+    splitVertical ht cnct tmp
+  pages <- forM (map concat $ chunksOf lns $ transpose trkLns) $ \pg ->
+    connectVertical pg tmp
+  pdf <- joinPages pages tmp
+  Dir.copyFile pdf fout
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
