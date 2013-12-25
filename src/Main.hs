@@ -214,9 +214,10 @@ main = do
       putStr $ showLibrary matches
     ExportAudio fout -> do
       matches <- searchResults args
-      let yes = mapM (`findAudioPart` matches) $ mapMaybe charToAudioPart $ selectParts args
-          no = mapM (`findAudioPart` matches) $ mapMaybe charToAudioPart $ rejectParts args
-      case (fmap (map $ uncurry getAudioFile) yes, fmap (map $ uncurry getAudioFile) no) of
+      let f = fmap (map $ uncurry getAudioFile)
+            . mapM (`findAudioPart` matches)
+            . mapMaybe charToAudioPart
+      case (f $ selectParts args, f $ rejectParts args) of
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
         (Right yaifcs, Right naifcs) ->
@@ -237,10 +238,11 @@ main = do
           systemHeight = sum $ map snd realTrks
           pageHeight = 724 / 8.5 * 11 :: Double
           defaultLines = round $ pageHeight / fromIntegral systemHeight
-          in run realTrks (max 1 $ fromMaybe defaultLines $ pageLines args) fout
+          realLines = max 1 $ fromMaybe defaultLines $ pageLines args
+          in runSheet realTrks realLines fout
 
-run :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
-run trks lns fout = withSystemTempDirectory "jammitsheet" $ \tmp -> do
+runSheet :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
+runSheet trks lns fout = withSystemTempDirectory "jammitsheet" $ \tmp -> do
   trkLns <- forM trks $ \(fp, ht) -> do
     cnct <- connectVertical [fp ++ "*"] tmp
     splitVertical ht cnct tmp
