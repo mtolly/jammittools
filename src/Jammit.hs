@@ -1,4 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
 module Jammit
 ( Instrument(..)
 , Part(..)
@@ -19,19 +18,16 @@ module Jammit
 import Control.Applicative ((<$>), (<*>), liftA2)
 import Control.Arrow ((***))
 import Control.Monad (filterM, guard)
-
 import Data.Char (toLower, toUpper)
-import Text.Read (readMaybe)
 import Data.Maybe (catMaybes)
-import qualified Data.Map as Map
-
 import System.Environment (lookupEnv)
-import System.FilePath ((</>))
-import System.Directory
-  (getHomeDirectory, getDirectoryContents, doesFileExist, doesDirectoryExist)
-import qualified System.Info as Info
+import Text.Read (readMaybe)
 
-import Data.PropertyList
+import qualified Data.Map as Map
+import qualified Data.PropertyList as PL
+import qualified System.Directory as Dir
+import System.FilePath ((</>))
+import qualified System.Info as Info
 
 -- | The Enum instance corresponds to the number used in the "instrument"
 -- property, and the names (used by Show/Read) are capitalized versions of those
@@ -117,70 +113,72 @@ data Info = Info
   , writtenBy    :: String
   } deriving (Eq, Ord, Show, Read)
 
-instance PropertyListItem Info where
+instance PL.PropertyListItem Info where
 
-  fromPropertyList pl = fromPlDict pl >>= \dict -> Info
-    <$> (Map.lookup "album"        dict >>= fromPlString)
-    <*> (Map.lookup "artist"       dict >>= fromPlString)
-    <*> (Map.lookup "bpm"          dict >>= fromPlString)
-    <*> (Map.lookup "copyright"    dict >>= fromPlString)
-    <*> (Map.lookup "countInBeats" dict >>= fromPlInt   )
-    <*> (Map.lookup "courtesyOf"   dict >>= fromPlString)
-    <*> (Map.lookup "demo"         dict >>= fromPlEnum  )
-    <*> (Map.lookup "explicit"     dict >>= fromPlEnum  )
-    <*> (Map.lookup "genre"        dict >>= fromPlString)
-    <*> (Map.lookup "instrument"   dict >>= fromPlEnum  )
-    <*> (Map.lookup "publishedBy"  dict >>= fromPlString)
-    <*> (Map.lookup "skillLevel"   dict >>= fromPlSkills)
-    <*> (Map.lookup "sku"          dict >>= fromPlString)
-    <*> (Map.lookup "slow"         dict >>= fromPlReal  )
-    <*> (Map.lookup "title"        dict >>= fromPlString)
-    <*> (Map.lookup "version"      dict >>= fromPlInt   )
-    <*> (Map.lookup "writtenBy"    dict >>= fromPlString)
+  fromPropertyList pl = PL.fromPlDict pl >>= \dict -> Info
+    <$> (Map.lookup "album"        dict >>= PL.fromPlString)
+    <*> (Map.lookup "artist"       dict >>= PL.fromPlString)
+    <*> (Map.lookup "bpm"          dict >>= PL.fromPlString)
+    <*> (Map.lookup "copyright"    dict >>= PL.fromPlString)
+    <*> (Map.lookup "countInBeats" dict >>= PL.fromPlInt   )
+    <*> (Map.lookup "courtesyOf"   dict >>= PL.fromPlString)
+    <*> (Map.lookup "demo"         dict >>=    fromPlEnum  )
+    <*> (Map.lookup "explicit"     dict >>=    fromPlEnum  )
+    <*> (Map.lookup "genre"        dict >>= PL.fromPlString)
+    <*> (Map.lookup "instrument"   dict >>=    fromPlEnum  )
+    <*> (Map.lookup "publishedBy"  dict >>= PL.fromPlString)
+    <*> (Map.lookup "skillLevel"   dict >>=    fromPlSkills)
+    <*> (Map.lookup "sku"          dict >>= PL.fromPlString)
+    <*> (Map.lookup "slow"         dict >>= PL.fromPlReal  )
+    <*> (Map.lookup "title"        dict >>= PL.fromPlString)
+    <*> (Map.lookup "version"      dict >>= PL.fromPlInt   )
+    <*> (Map.lookup "writtenBy"    dict >>= PL.fromPlString)
 
-  toPropertyList info = plDict $ Map.fromList
-    [ ("album"       , plString $ album        info)
-    , ("artist"      , plString $ artist       info)
-    , ("bpm"         , plString $ bpm          info)
-    , ("copyright"   , plString $ copyright    info)
-    , ("countInBeats", plInt    $ countInBeats info)
-    , ("courtesyOf"  , plString $ courtesyOf   info)
-    , ("demo"        , plEnum   $ demo         info)
-    , ("explicit"    , plEnum   $ explicit     info)
-    , ("genre"       , plString $ genre        info)
-    , ("instrument"  , plEnum   $ instrument   info)
-    , ("publishedBy" , plString $ publishedBy  info)
-    , ("skillLevel"  , plSkills $ skillLevel   info)
-    , ("sku"         , plString $ sku          info)
-    , ("slow"        , plReal   $ slow         info)
-    , ("title"       , plString $ title        info)
-    , ("version"     , plInt    $ version      info)
-    , ("writtenBy"   , plString $ writtenBy    info)
+  toPropertyList info = PL.plDict $ Map.fromList
+    [ ("album"       , PL.plString $ album        info)
+    , ("artist"      , PL.plString $ artist       info)
+    , ("bpm"         , PL.plString $ bpm          info)
+    , ("copyright"   , PL.plString $ copyright    info)
+    , ("countInBeats", PL.plInt    $ countInBeats info)
+    , ("courtesyOf"  , PL.plString $ courtesyOf   info)
+    , ("demo"        ,    plEnum   $ demo         info)
+    , ("explicit"    ,    plEnum   $ explicit     info)
+    , ("genre"       , PL.plString $ genre        info)
+    , ("instrument"  ,    plEnum   $ instrument   info)
+    , ("publishedBy" , PL.plString $ publishedBy  info)
+    , ("skillLevel"  ,    plSkills $ skillLevel   info)
+    , ("sku"         , PL.plString $ sku          info)
+    , ("slow"        , PL.plReal   $ slow         info)
+    , ("title"       , PL.plString $ title        info)
+    , ("version"     , PL.plInt    $ version      info)
+    , ("writtenBy"   , PL.plString $ writtenBy    info)
     ]
 
-fromPlEnum :: (Enum a) => PropertyList -> Maybe a
-fromPlEnum pl = toEnum . fromIntegral <$> fromPlInt pl
+fromPlEnum :: (Enum a) => PL.PropertyList -> Maybe a
+fromPlEnum pl = toEnum . fromIntegral <$> PL.fromPlInt pl
 
-plEnum :: (Enum a) => a -> PropertyList
-plEnum = plInt . fromIntegral . fromEnum
+plEnum :: (Enum a) => a -> PL.PropertyList
+plEnum = PL.plInt . fromIntegral . fromEnum
 
-fromPlSkills :: PropertyList -> Maybe (Either Integer [(Instrument, Integer)])
-fromPlSkills (fromPlDict -> Just d) = let
-  getSkill (x, y) = liftA2 (,) (readMaybe $ capitalize x) (fromPlInt y)
-  capitalize ""     = ""
-  capitalize (c:cs) = toUpper c : map toLower cs
-  in fmap Right $ mapM getSkill $ Map.toList d
-fromPlSkills (fromPlInt -> Just i) = Just $ Left i
-fromPlSkills _ = Nothing
+fromPlSkills
+  :: PL.PropertyList -> Maybe (Either Integer [(Instrument, Integer)])
+fromPlSkills pl = case (PL.fromPlInt pl, PL.fromPlDict pl) of
+  (Nothing, Nothing) -> Nothing
+  (Just i , _      ) -> Just $ Left i
+  (_      , Just d ) -> let
+    getSkill (x, y) = liftA2 (,) (readMaybe $ capitalize x) (PL.fromPlInt y)
+    capitalize ""     = ""
+    capitalize (c:cs) = toUpper c : map toLower cs
+    in fmap Right $ mapM getSkill $ Map.toList d
 
-plSkills :: Either Integer [(Instrument, Integer)] -> PropertyList
-plSkills (Left  i ) = plInt i
-plSkills (Right sl) = plDict $
-  Map.fromList $ map (map toLower . show *** plInt) sl
+plSkills :: Either Integer [(Instrument, Integer)] -> PL.PropertyList
+plSkills (Left  i ) = PL.plInt i
+plSkills (Right sl) = PL.plDict $
+  Map.fromList $ map (map toLower . show *** PL.plInt) sl
 
 loadInfo :: FilePath -> IO (Maybe Info)
 loadInfo dir =
-  fromPropertyList <$> readXmlPropertyListFromFile (dir </> "info.plist")
+  PL.fromPropertyList <$> PL.readXmlPropertyListFromFile (dir </> "info.plist")
 
 data Track = Track
   { trackClass          :: String
@@ -190,26 +188,26 @@ data Track = Track
   , trackTitle          :: Maybe String
   } deriving (Eq, Ord, Show, Read)
 
-instance PropertyListItem Track where
+instance PL.PropertyListItem Track where
 
-  toPropertyList t = plDict $ Map.fromList $ catMaybes
-    [ Just ("class"              , plString $ trackClass          t)
-    , Just ("identifier"         , plString $ identifier          t)
-    , scoreSystemHeight   t >>= \i -> Just ("scoreSystemHeight"  , plInt    i)
-    , scoreSystemInterval t >>= \i -> Just ("scoreSystemInterval", plInt    i)
-    , trackTitle          t >>= \s -> Just ("title"              , plString s)
+  toPropertyList t = PL.plDict $ Map.fromList $ catMaybes
+    [ Just ("class"              , PL.plString $ trackClass          t)
+    , Just ("identifier"         , PL.plString $ identifier          t)
+    , (\i -> ("scoreSystemHeight"  , PL.plInt    i)) <$> scoreSystemHeight   t
+    , (\i -> ("scoreSystemInterval", PL.plInt    i)) <$> scoreSystemInterval t
+    , (\s -> ("title"              , PL.plString s)) <$> trackTitle          t
     ]
 
-  fromPropertyList pl = fromPlDict pl >>= \d -> Track
-    <$>      (Map.lookup "class"               d >>= fromPlString)
-    <*>      (Map.lookup "identifier"          d >>= fromPlString)
-    <*> Just (Map.lookup "scoreSystemHeight"   d >>= fromPlInt   )
-    <*> Just (Map.lookup "scoreSystemInterval" d >>= fromPlInt   )
-    <*> Just (Map.lookup "title"               d >>= fromPlString)
+  fromPropertyList pl = PL.fromPlDict pl >>= \d -> Track
+    <$>      (Map.lookup "class"               d >>= PL.fromPlString)
+    <*>      (Map.lookup "identifier"          d >>= PL.fromPlString)
+    <*> Just (Map.lookup "scoreSystemHeight"   d >>= PL.fromPlInt   )
+    <*> Just (Map.lookup "scoreSystemInterval" d >>= PL.fromPlInt   )
+    <*> Just (Map.lookup "title"               d >>= PL.fromPlString)
 
 loadTracks :: FilePath -> IO (Maybe [Track])
-loadTracks dir =
-  listFromPropertyList <$> readXmlPropertyListFromFile (dir </> "tracks.plist")
+loadTracks dir = PL.listFromPropertyList <$>
+  PL.readXmlPropertyListFromFile (dir </> "tracks.plist")
 
 -- | Tries to find the top-level Jammit library directory.
 findJammitDir :: IO (Maybe FilePath)
@@ -218,23 +216,23 @@ findJammitDir = case Info.os of
     v <- lookupEnv "LOCALAPPDATA"
     local <- case v of
       Just l  -> return l
-      Nothing -> (\h -> h </> "AppData" </> "Local") <$> getHomeDirectory 
+      Nothing -> (\h -> h </> "AppData" </> "Local") <$> Dir.getHomeDirectory
     let jmt = local </> "Jammit"
-    b <- doesDirectoryExist jmt
+    b <- Dir.doesDirectoryExist jmt
     return $ guard b >> Just jmt
   _ -> return Nothing -- TODO: OS X
 
 -- | Gets the contents of a directory without the @.@ and @..@ special paths,
 -- and adds the directory to the front of all the names to make absolute paths.
 lsAbsolute :: FilePath -> IO [FilePath]
-lsAbsolute dir =
-  map (dir </>) . filter (`notElem` [".", ".."]) <$> getDirectoryContents dir
+lsAbsolute d =
+  map (d </>) . filter (`notElem` [".", ".."]) <$> Dir.getDirectoryContents d
 
 -- | Searches a directory and all subdirectories for folders containing a Jammit
 -- info file.
 songSubdirs :: FilePath -> IO [FilePath]
 songSubdirs dir = do
-  isSong <- doesFileExist $ dir </> "info.plist"
+  isSong <- Dir.doesFileExist $ dir </> "info.plist"
   let here = [dir | isSong]
-  subdirs <- lsAbsolute dir >>= filterM doesDirectoryExist
+  subdirs <- lsAbsolute dir >>= filterM Dir.doesDirectoryExist
   (here ++) . concat <$> mapM songSubdirs subdirs

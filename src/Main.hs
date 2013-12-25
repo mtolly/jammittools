@@ -1,21 +1,21 @@
-{-# LANGUAGE TupleSections #-}
 module Main (main) where
 
-import qualified System.Directory as Dir
-import System.FilePath ((</>))
 import Control.Applicative ((<$>), liftA2)
 import Control.Monad (forM, (>=>), guard)
 import Data.Char (toLower)
-import Data.Maybe (mapMaybe, catMaybes, fromMaybe)
 import Data.List (isInfixOf, transpose, sort, nub)
-import System.Console.GetOpt
-import System.Environment (getArgs, getProgName)
-import System.IO.Temp (withSystemTempDirectory)
+import Data.Maybe (mapMaybe, catMaybes, fromMaybe)
 import Data.Monoid (mconcat)
+import qualified System.Console.GetOpt as Opt
+import qualified System.Environment as Env
 
-import Jammit
-import ImageMagick
+import qualified System.Directory as Dir
+import System.FilePath ((</>))
+import System.IO.Temp (withSystemTempDirectory)
+
 import AIFC2WAV
+import ImageMagick
+import Jammit
 import Sox
 
 data Args = Args
@@ -88,35 +88,37 @@ searchBy :: (Info -> String) -> String -> Library -> Library
 searchBy f str = let str' = map toLower str in
   filter $ \(_, info, _) -> str' `isInfixOf` map toLower (f info)
 
-argOpts :: [OptDescr (Args -> Args)]
+argOpts :: [Opt.OptDescr (Args -> Args)]
 argOpts =
-  [ Option ['t'] ["title"] (ReqArg (\s a -> a { searchTitle = s }) "str")
+  [ Opt.Option ['t'] ["title"]
+    (Opt.ReqArg (\s a -> a { searchTitle = s }) "str")
     "search by song title"
-  , Option ['r'] ["artist"] (ReqArg (\s a -> a { searchArtist = s }) "str")
+  , Opt.Option ['r'] ["artist"]
+    (Opt.ReqArg (\s a -> a { searchArtist = s }) "str")
     "search by song artist"
-  , Option ['y'] ["yesparts"]
-    (ReqArg (\s a -> a { selectParts = s }) "parts")
+  , Opt.Option ['y'] ["yesparts"]
+    (Opt.ReqArg (\s a -> a { selectParts = s }) "parts")
     "parts to appear in sheet music or audio"
-  , Option ['n'] ["noparts"]
-    (ReqArg (\s a -> a { rejectParts = s }) "parts")
+  , Opt.Option ['n'] ["noparts"]
+    (Opt.ReqArg (\s a -> a { rejectParts = s }) "parts")
     "parts to subtract (add inverted) from audio"
-  , Option ['l'] ["lines"]
-    (ReqArg (\s a -> a { pageLines = Just $ read s }) "int")
+  , Opt.Option ['l'] ["lines"]
+    (Opt.ReqArg (\s a -> a { pageLines = Just $ read s }) "int")
     "number of systems per page"
-  , Option ['j'] ["jammit"]
-    (ReqArg (\s a -> a { jammitDir = Just s }) "directory")
+  , Opt.Option ['j'] ["jammit"]
+    (Opt.ReqArg (\s a -> a { jammitDir = Just s }) "directory")
     "location of Jammit library"
-  , Option ['?'] ["help"]
-    (NoArg $ \a -> a { function = PrintUsage })
+  , Opt.Option ['?'] ["help"]
+    (Opt.NoArg $ \a -> a { function = PrintUsage })
     "function: print usage info"
-  , Option ['d'] ["database"]
-    (NoArg $ \a -> a { function = ShowDatabase })
+  , Opt.Option ['d'] ["database"]
+    (Opt.NoArg $ \a -> a { function = ShowDatabase })
     "function: display all songs in db"
-  , Option ['s'] ["sheet"]
-    (ReqArg (\s a -> a { function = ExportSheet s }) "file")
+  , Opt.Option ['s'] ["sheet"]
+    (Opt.ReqArg (\s a -> a { function = ExportSheet s }) "file")
     "function: export sheet music"
-  , Option ['a'] ["audio"]
-    (ReqArg (\s a -> a { function = ExportAudio s }) "file")
+  , Opt.Option ['a'] ["audio"]
+    (Opt.ReqArg (\s a -> a { function = ExportAudio s }) "file")
     "function: export audio"
   ]
 
@@ -200,13 +202,13 @@ getSheetFile fp trk st = let
 
 main :: IO ()
 main = do
-  (fs, _, _) <- getOpt Permute argOpts <$> getArgs
+  (fs, _, _) <- Opt.getOpt Opt.Permute argOpts <$> Env.getArgs
   let args = foldr ($) defaultArgs fs
   case function args of
     PrintUsage -> do
-      prog <- getProgName
+      prog <- Env.getProgName
       let header = "Usage: " ++ prog ++ " [options]"
-      putStr $ usageInfo header argOpts
+      putStr $ Opt.usageInfo header argOpts
     ShowDatabase -> do
       matches <- searchResults args
       putStr $ showLibrary matches
@@ -221,7 +223,7 @@ main = do
           withSystemTempDirectory "jammitaudio" $ \tmp -> do
             ywavs <- map File <$> mapM (`aifcToWav` tmp) yaifcs
             nwavs <- map File <$> mapM (`aifcToWav` tmp) naifcs
-            wav <- render (Mix (mconcat ywavs) (Invert $ mconcat nwavs)) tmp
+            wav <- renderAudio (mconcat ywavs `Mix` Invert (mconcat nwavs)) tmp
             Dir.copyFile wav fout
     ExportSheet fout -> do
       matches <- searchResults args

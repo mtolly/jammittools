@@ -2,8 +2,7 @@ module ImageMagick
 ( connectVertical
 , splitVertical
 , joinPages
-)
-where
+) where
 
 import System.Directory (getDirectoryContents)
 import System.Process (readProcess, readProcessWithExitCode)

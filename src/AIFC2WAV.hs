@@ -3,11 +3,12 @@ module AIFC2WAV
 ( aifcToWav
 ) where
 
-import Foreign.C
-import Foreign.Ptr
-import Foreign.Marshal.Array
-import System.IO.Temp (openTempFile)
 import System.IO (hClose)
+
+import Foreign.C (withCString, CInt(..), CChar(..))
+import Foreign.Marshal.Array (withArrayLen)
+import Foreign.Ptr (Ptr)
+import System.IO.Temp (openTempFile)
 
 foreign import ccall "aifc2wav_main" aifc2wav_main
   :: CInt -> Ptr (Ptr CChar) -> IO CInt

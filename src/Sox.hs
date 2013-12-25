@@ -1,12 +1,13 @@
 module Sox
 ( Audio(..)
-, render
+, renderAudio
 ) where
 
-import System.Process (readProcess)
-import System.IO.Temp (openTempFile)
-import System.IO (hClose)
 import Data.Monoid (Monoid(..))
+import System.IO (hClose)
+
+import System.IO.Temp (openTempFile)
+import System.Process (readProcess)
 
 data Audio
   = Silence
@@ -28,8 +29,8 @@ mixedFiles (Mix  x y) = let
   (c, d) = mixedFiles y
   in (a ++ c, b ++ d)
 
-render :: Audio -> FilePath -> IO FilePath
-render aud tempdir = do
+renderAudio :: Audio -> FilePath -> IO FilePath
+renderAudio aud tempdir = do
   (fout, h) <- openTempFile tempdir "render.wav"
   hClose h
   let (norm, inv) = mixedFiles aud
