@@ -1,7 +1,7 @@
 module Main (main) where
 
 import Control.Applicative ((<$>), liftA2, (<|>))
-import Control.Monad (forM, (>=>), guard)
+import Control.Monad (forM, (>=>))
 import Data.Char (toLower)
 import Data.List (isInfixOf, transpose, sort, nub, foldl')
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe)
@@ -62,10 +62,10 @@ partToChar p = case p of
 charPartMap :: [(Char, Part)]
 charPartMap = [ (partToChar p, p) | p <- [minBound .. maxBound] ]
 
-charToPart :: Char -> Maybe (Part, SheetType)
-charToPart c = let
-  notation = (\p -> (p, Notation)) <$> lookup c           charPartMap
-  tab      = (\p -> (p, Tab     )) <$> lookup (toLower c) charPartMap
+charToSheetPart :: Char -> Maybe SheetPart
+charToSheetPart c = let
+  notation = Notation <$> lookup c           charPartMap
+  tab      = Tab      <$> lookup (toLower c) charPartMap
   in notation <|> tab
 
 charToAudioPart :: Char -> Maybe AudioPart
@@ -154,34 +154,30 @@ searchResults args = do
   return $
     searchBy title (searchTitle args) $ searchBy artist (searchArtist args) db
 
-findAudioPart :: AudioPart -> Library -> Either String (FilePath, Track)
-findAudioPart ap lib = let
-  inst = audioPartToInstrument ap
-  filtered = do
-    (fp, i, trks) <- lib
-    guard $ instrument i == inst
-    trk <- trks
-    guard $ (trackTitle trk >>= \t -> titleToAudioPart t inst) == Just ap
-    return (fp, trk)
-  in case filtered of
-    [one] -> Right one
-    []    -> Left $ "No results for " ++ show ap
-    _     -> Left $ "More than one result for " ++ show ap
+getAudioParts :: Library -> [(AudioPart, FilePath)]
+getAudioParts lib = do
+  (dir, info, trks) <- lib
+  trk <- trks
+  case trackTitle trk >>= \t -> titleToAudioPart t (instrument info) of
+    Nothing -> []
+    Just ap -> [(ap, dir </> (identifier trk ++ "_jcfx"))]
 
-findSheetPart
-  :: (Part, SheetType) -> Library -> Either String (FilePath, Track, SheetType)
-findSheetPart (p, st) lib =
-  (\(fp, trk) -> (fp, trk, st)) <$> findAudioPart (Only p) lib
+getSheetParts :: Library -> [(SheetPart, (FilePath, Integer))]
+getSheetParts lib = do
+  (dir, _info, trks) <- lib
+  trk <- trks
+  case (trackTitle trk >>= \t -> titleToPart t, scoreSystemInterval trk) of
+    (Just p, Just ht) -> if elem (partToInstrument p) [Guitar, Bass]
+      then [sheet, tab]
+      else [sheet]
+      where sheet = (Notation p, (dir </> (identifier trk ++ "_jcfn"), ht))
+            tab   = (Tab      p, (dir </> (identifier trk ++ "_jcft"), ht))
+    _ -> []
 
-getAudioFile :: FilePath -> Track -> FilePath
-getAudioFile fp trk = fp </> (identifier trk ++ "_jcfx")
-
-getSheetFile :: FilePath -> Track -> SheetType -> (FilePath, Integer)
-getSheetFile fp trk st = let
-  suffix = case st of
-    Notation -> "_jcfn"
-    Tab      -> "_jcft"
-  in (fp </> (identifier trk ++ suffix), fromMaybe 0 $ scoreSystemInterval trk)
+getOneResult :: (Eq a, Show a) => a -> [(a, b)] -> Either String b
+getOneResult x xys = case [ b | (a, b) <- xys, a == x ] of
+  [y] -> Right y
+  ys  -> Left $ "Got " ++ show (length ys) ++ " results for " ++ show x
 
 main :: IO ()
 main = do
@@ -196,9 +192,8 @@ main = do
       matches <- searchResults args
       putStr $ showLibrary matches
     ExportAudio fout -> do
-      matches <- searchResults args
-      let f = fmap (map $ uncurry getAudioFile)
-            . mapM (`findAudioPart` matches)
+      matches <- getAudioParts <$> searchResults args
+      let f = mapM (`getOneResult` matches)
             . mapMaybe charToAudioPart
       case (f $ selectParts args, f $ rejectParts args) of
         (Left  err   , _           ) -> error err
@@ -210,19 +205,17 @@ main = do
             wav <- renderAudio (mconcat ywavs `Mix` Invert (mconcat nwavs)) tmp
             Dir.copyFile wav fout
     ExportSheet fout -> do
-      matches <- searchResults args
-      let sheetParts = mapMaybe charToPart $ selectParts args
-            :: [(Part, SheetType)]
-      case mapM (`findSheetPart` matches) sheetParts of
+      matches <- getSheetParts <$> searchResults args
+      let f = mapM (`getOneResult` matches)
+            . mapMaybe charToSheetPart
+      case f $ selectParts args of
         Left  err   -> error err
         Right parts -> let
-          uncurry3 f (x, y, z) = f x y z
-          realTrks = map (uncurry3 getSheetFile) parts
-          systemHeight = sum $ map snd realTrks
+          systemHeight = sum $ map snd parts
           pageHeight = 724 / 8.5 * 11 :: Double
           defaultLines = round $ pageHeight / fromIntegral systemHeight
           realLines = max 1 $ fromMaybe defaultLines $ pageLines args
-          in runSheet realTrks realLines fout
+          in runSheet parts realLines fout
 
 runSheet :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
 runSheet trks lns fout = withSystemTempDirectory "jammitsheet" $ \tmp -> do

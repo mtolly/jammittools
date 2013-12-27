@@ -2,7 +2,7 @@ module Jammit
 ( Instrument(..)
 , Part(..)
 , AudioPart(..)
-, SheetType(..)
+, SheetPart(..)
 , titleToPart
 , titleToAudioPart
 , partToInstrument
@@ -53,8 +53,10 @@ data AudioPart
   | Without Instrument
   deriving (Eq, Ord, Show, Read)
 
-data SheetType = Notation | Tab
-  deriving (Eq, Ord, Show, Read, Enum, Bounded)
+data SheetPart
+  = Notation Part
+  | Tab Part
+  deriving (Eq, Ord, Show, Read)
 
 titleToPart :: String -> Maybe Part
 titleToPart s = case s of
