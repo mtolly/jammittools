@@ -1,9 +1,9 @@
 module Main (main) where
 
-import Control.Applicative ((<$>), liftA2)
+import Control.Applicative ((<$>), liftA2, (<|>))
 import Control.Monad (forM, (>=>), guard)
 import Data.Char (toLower)
-import Data.List (isInfixOf, transpose, sort, nub)
+import Data.List (isInfixOf, transpose, sort, nub, foldl')
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe)
 import Data.Monoid (mconcat)
 import qualified System.Console.GetOpt as Opt
@@ -46,41 +46,33 @@ defaultArgs = Args
   , function     = PrintUsage
   }
 
+partToChar :: Part -> Char
+partToChar p = case p of
+  PartGuitar1 -> 'g'
+  PartGuitar2 -> 'r'
+  PartBass    -> 'b'
+  PartDrums   -> 'd'
+  PartKeys1   -> 'k'
+  PartKeys2   -> 'y'
+  PartPiano   -> 'p'
+  PartSynth   -> 's'
+  PartVocal   -> 'v'
+  PartBVocals -> 'x'
+
+charPartMap :: [(Char, Part)]
+charPartMap = [ (partToChar p, p) | p <- [minBound .. maxBound] ]
+
 charToPart :: Char -> Maybe (Part, SheetType)
-charToPart c = lookup c
-  [ ('g', (PartGuitar1, Notation))
-  , ('G', (PartGuitar1, Tab     ))
-  , ('r', (PartGuitar2, Notation))
-  , ('R', (PartGuitar2, Tab     ))
-  , ('b', (PartBass   , Notation))
-  , ('B', (PartBass   , Tab     ))
-  , ('d', (PartDrums  , Notation))
-  , ('k', (PartKeys1  , Notation))
-  , ('y', (PartKeys2  , Notation))
-  , ('p', (PartPiano  , Notation))
-  , ('s', (PartSynth  , Notation))
-  , ('v', (PartVocal  , Notation))
-  , ('x', (PartBVocals, Notation))
-  ]
+charToPart c = let
+  notation = (\p -> (p, Notation)) <$> lookup c           charPartMap
+  tab      = (\p -> (p, Tab     )) <$> lookup (toLower c) charPartMap
+  in notation <|> tab
 
 charToAudioPart :: Char -> Maybe AudioPart
-charToAudioPart c = lookup c
-  [ ('g', Only PartGuitar1)
-  , ('r', Only PartGuitar2)
-  , ('b', Only PartBass   )
-  , ('d', Only PartDrums  )
-  , ('k', Only PartKeys1  )
-  , ('y', Only PartKeys2  )
-  , ('p', Only PartPiano  )
-  , ('s', Only PartSynth  )
-  , ('v', Only PartVocal  )
-  , ('x', Only PartBVocals)
-  , ('G', Without Guitar  )
-  , ('B', Without Bass    )
-  , ('D', Without Drums   )
-  , ('K', Without Keyboard)
-  , ('V', Without Vocal   )
-  ]
+charToAudioPart c = let
+  only    = Only                       <$> lookup c           charPartMap
+  without = Without . partToInstrument <$> lookup (toLower c) charPartMap
+  in only <|> without
 
 type Library = [(FilePath, Info, [Track])]
 
@@ -133,32 +125,23 @@ loadLibrary jmt = do
 showLibrary :: Library -> String
 showLibrary lib = let
   titleArtists = sort $ nub [ (title info, artist info) | (_, info, _) <- lib ]
-  charForPart p = case p of
-    PartGuitar1 -> 'g'
-    PartGuitar2 -> 'r'
-    PartBass    -> 'b'
-    PartDrums   -> 'd'
-    PartKeys1   -> 'k'
-    PartKeys2   -> 'y'
-    PartPiano   -> 'p'
-    PartSynth   -> 's'
-    PartVocal   -> 'v'
-    PartBVocals -> 'x'
-  partsFor ttl art = map charForPart $ sort $ concat
+  partsFor ttl art = map partToChar $ sort $ concat
     [ mapMaybe (trackTitle >=> titleToPart) trks
     | (_, info, trks) <- lib
     , (ttl, art) == (title info, artist info) ]
   titleArtistParts = [ (t, a, partsFor t a) | (t, a) <- titleArtists ]
-  titleWidth  = (+1) $ max 5 $ maximum [ length t | (t, _, _) <- titleArtistParts ]
-  artistWidth = (+1) $ max 6 $ maximum [ length a | (_, a, _) <- titleArtistParts ]
-  partsWidth  =                maximum [ length p | (_, _, p) <- titleArtistParts ]
+  titleWidth  = foldl' max 5 [ length t | (t, _, _) <- titleArtistParts ]
+  artistWidth = foldl' max 6 [ length a | (_, a, _) <- titleArtistParts ]
+  partsWidth  = foldl' max 5 [ length p | (_, _, p) <- titleArtistParts ]
   s `padTo` n = take n $ s ++ repeat ' '
   padTAP (t, a, p) = concat
     [ t `padTo` titleWidth
+    , " "
     , a `padTo` artistWidth
+    , " "
     , p ]
   header = padTAP ("Title", "Artist", "Parts")
-  divider = replicate (titleWidth + artistWidth + partsWidth) '='
+  divider = replicate (titleWidth + 1 + artistWidth + 1 + partsWidth) '='
   in unlines $ header : divider : map padTAP titleArtistParts
 
 searchResults :: Args -> IO Library
