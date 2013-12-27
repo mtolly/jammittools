@@ -123,6 +123,7 @@ loadLibrary jmt = do
     maybeTrks <- loadTracks d
     return $ liftA2 (\i t -> (d, i, t)) maybeInfo maybeTrks
 
+-- | Displays a table of the library, possibly filtered by search terms.
 showLibrary :: Library -> String
 showLibrary lib = let
   titleArtists = sort $ nub [ (title info, artist info) | (_, info, _) <- lib ]
@@ -136,6 +137,8 @@ showLibrary lib = let
   partsColumn = makeColumn "Parts" $ map (uncurry partsFor) titleArtists
   in render $ hsep 1 top [titleColumn, artistColumn, partsColumn]
 
+-- | Loads the Jammit library, and applies the search terms from the arguments
+-- to filter it.
 searchResults :: Args -> IO Library
 searchResults args = do
   jmt <- case jammitDir args of
@@ -146,6 +149,7 @@ searchResults args = do
   return $
     searchBy title (searchTitle args) $ searchBy artist (searchArtist args) db
 
+-- | A mapping from audio part to absolute filename of an audio file.
 getAudioParts :: Library -> [(AudioPart, FilePath)]
 getAudioParts lib = do
   (dir, info, trks) <- lib
@@ -154,6 +158,8 @@ getAudioParts lib = do
     Nothing -> []
     Just ap -> [(ap, dir </> (identifier trk ++ "_jcfx"))]
 
+-- | A mapping from sheet part to
+-- @(prefix of image files, line height in pixels)@.
 getSheetParts :: Library -> [(SheetPart, (FilePath, Integer))]
 getSheetParts lib = do
   (dir, _info, trks) <- lib
@@ -166,6 +172,8 @@ getSheetParts lib = do
             tab   = (Tab      p, (dir </> (identifier trk ++ "_jcft"), ht))
     _ -> []
 
+-- | If there is exactly one pair with the given first element, returns its
+-- second element. Otherwise (for 0 or >1 elements) returns an error.
 getOneResult :: (Eq a, Show a) => a -> [(a, b)] -> Either String b
 getOneResult x xys = case [ b | (a, b) <- xys, a == x ] of
   [y] -> Right y

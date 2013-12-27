@@ -211,11 +211,12 @@ loadTracks :: FilePath -> IO (Maybe [Track])
 loadTracks dir = PL.listFromPropertyList <$>
   PL.readXmlPropertyListFromFile (dir </> "tracks.plist")
 
--- | Tries to find the top-level Jammit library directory.
+-- | Tries to find the top-level Jammit library directory. Currently only works
+-- for Windows. TODO: Add MAC OS X support.
 findJammitDir :: IO (Maybe FilePath)
 findJammitDir = case Info.os of
   "mingw32" -> do
-    v <- lookupEnv "LOCALAPPDATA"
+    v <- lookupEnv "LocalAppData"
     local <- case v of
       Just l  -> return l
       Nothing -> (\h -> h </> "AppData" </> "Local") <$> Dir.getHomeDirectory

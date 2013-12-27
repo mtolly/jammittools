@@ -15,6 +15,7 @@ foreign import ccall "aifc2wav_main" aifc2wav_main
 foreign import ccall "reset_predictors" reset_predictors
   :: IO ()
 
+-- | Given a (new-style) IMA4-compressed AIFC file, converts it to a WAV file.
 aifcToWav :: FilePath -> TempIO FilePath
 aifcToWav aifc = do
   wav <- newTempFile "aifcToWav.wav"

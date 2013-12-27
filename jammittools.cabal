@@ -1,6 +1,8 @@
 Name:               jammittools
 Version:            0.0.1
+Synopsis:           Export sheet music and audio from Windows/Mac app Jammit
 License:            GPL
+License-File:       LICENSE
 Author:             Michael Tolly
 Maintainer:         miketolly@gmail.com
 Build-Type:         Simple
@@ -21,3 +23,7 @@ Executable jammittools
                     , transformers  == 0.3.*
   Ghc-Options:      -Wall
   C-Sources:        c/aifc2wav-5.1.c
+
+Source-Repository head
+  Type:             git
+  location:         git://github.com/mtolly/jammittools.git

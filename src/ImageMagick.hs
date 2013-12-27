@@ -4,19 +4,21 @@ module ImageMagick
 , joinPages
 ) where
 
-import System.Directory (getDirectoryContents)
-import System.Process (readProcess, readProcessWithExitCode)
-import System.FilePath ((</>))
-import System.Exit (ExitCode(..))
 import Control.Applicative ((<$>))
 import Control.Monad (void)
-import Data.Maybe (listToMaybe)
-import Data.List (isPrefixOf, sortBy)
-import Data.Ord (comparing)
 import Data.Char (isDigit)
+import Data.List (isPrefixOf, sortBy)
+import Data.Maybe (listToMaybe)
+import Data.Ord (comparing)
 import System.Environment (lookupEnv)
+import System.Exit (ExitCode(..))
 import qualified System.Info as Info
+
+import System.Directory (getDirectoryContents)
+import System.FilePath ((</>))
 import System.IO.Temp (createTempDirectory)
+import System.Process (readProcess, readProcessWithExitCode)
+
 import TempFile
 
 -- | Find an ImageMagick binary, because the names are way too generic, and
@@ -54,7 +56,7 @@ firstJustM (mx : xs) = mx >>= \x -> case x of
   Nothing -> firstJustM xs
   Just y  -> return $ Just y
 
--- | Uses ImageMagick to stick images together vertically.
+-- | Stick images together vertically into one long image.
 connectVertical :: [FilePath] -> TempIO FilePath
 connectVertical fins = do
   cmd <- liftIO $ imageMagick' "montage"
@@ -63,7 +65,7 @@ connectVertical fins = do
     (["-geometry", "100%", "-tile", "1x"] ++ fins ++ [fout]) ""
   return fout
 
--- | Uses ImageMagick to split an image into chunks of a given height.
+-- | Splits an image vertically into chunks of a given height.
 splitVertical :: Integer -> FilePath -> TempIO [FilePath]
 splitVertical i fin = do
   cmd <- liftIO $ imageMagick' "convert"
@@ -77,7 +79,7 @@ splitVertical i fin = do
         getNumber = read . takeWhile isDigit . dropWhile (not . isDigit)
         isFile = (`notElem` [".", ".."])
 
--- | Uses ImageMagick to join several images into pages of a PDF.
+-- | Joins several images into a PDF, where each image is a page.
 joinPages :: [FilePath] -> TempIO FilePath
 joinPages fins = do
   cmd <- liftIO $ imageMagick' "convert"
