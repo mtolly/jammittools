@@ -11,14 +11,13 @@ import qualified System.Environment as Env
 
 import Text.PrettyPrint.Boxes
   (text, vcat, left, render, hsep, top, (/+/))
-import qualified System.Directory as Dir
 import System.FilePath ((</>))
-import System.IO.Temp (withSystemTempDirectory)
 
 import AIFC2WAV
 import ImageMagick
 import Jammit
 import Sox
+import TempFile
 
 data Args = Args
   { searchTitle  :: String
@@ -191,12 +190,10 @@ main = do
       case (f $ selectParts args, f $ rejectParts args) of
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
-        (Right yaifcs, Right naifcs) ->
-          withSystemTempDirectory "jammitaudio" $ \tmp -> do
-            ywavs <- map File <$> mapM (`aifcToWav` tmp) yaifcs
-            nwavs <- map File <$> mapM (`aifcToWav` tmp) naifcs
-            wav <- renderAudio (mconcat ywavs `Mix` Invert (mconcat nwavs)) tmp
-            Dir.copyFile wav fout
+        (Right yaifcs, Right naifcs) -> runTempIO fout $ do
+          ywavs <- map File <$> mapM aifcToWav yaifcs
+          nwavs <- map File <$> mapM aifcToWav naifcs
+          renderAudio $ mconcat ywavs `Mix` Invert (mconcat nwavs)
     ExportSheet fout -> do
       matches <- getSheetParts <$> searchResults args
       let f = mapM (`getOneResult` matches)
@@ -211,14 +208,13 @@ main = do
           in runSheet parts realLines fout
 
 runSheet :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
-runSheet trks lns fout = withSystemTempDirectory "jammitsheet" $ \tmp -> do
+runSheet trks lns fout = runTempIO fout $ do
   trkLns <- forM trks $ \(fp, ht) -> do
-    cnct <- connectVertical [fp ++ "*"] tmp
-    splitVertical ht cnct tmp
+    cnct <- connectVertical [fp ++ "*"]
+    splitVertical ht cnct
   pages <- forM (map concat $ chunksOf lns $ transpose trkLns) $ \pg ->
-    connectVertical pg tmp
-  pdf <- joinPages pages tmp
-  Dir.copyFile pdf fout
+    connectVertical pg
+  joinPages pages
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []

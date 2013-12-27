@@ -16,8 +16,8 @@ import Data.Ord (comparing)
 import Data.Char (isDigit)
 import System.Environment (lookupEnv)
 import qualified System.Info as Info
-import System.IO.Temp (openTempFile, createTempDirectory)
-import System.IO (hClose)
+import System.IO.Temp (createTempDirectory)
+import TempFile
 
 -- | Find an ImageMagick binary, because the names are way too generic, and
 -- "convert" is both an ImageMagick program and a Windows built-in utility.
@@ -55,32 +55,32 @@ firstJustM (mx : xs) = mx >>= \x -> case x of
   Just y  -> return $ Just y
 
 -- | Uses ImageMagick to stick images together vertically.
-connectVertical :: [FilePath] -> FilePath -> IO FilePath
-connectVertical fins tempdir = do
-  cmd <- imageMagick' "montage"
-  (fout, h) <- openTempFile tempdir "connectVertical.png"
-  hClose h
-  void $ readProcess cmd
+connectVertical :: [FilePath] -> TempIO FilePath
+connectVertical fins = do
+  cmd <- liftIO $ imageMagick' "montage"
+  fout <- newTempFile "connectVertical.png"
+  void $ liftIO $ readProcess cmd
     (["-geometry", "100%", "-tile", "1x"] ++ fins ++ [fout]) ""
   return fout
 
 -- | Uses ImageMagick to split an image into chunks of a given height.
-splitVertical :: Integer -> FilePath -> FilePath -> IO [FilePath]
-splitVertical i fin tempdir = do
-  cmd <- imageMagick' "convert"
-  splitdir <- createTempDirectory tempdir "splitVertical"
-  void $ readProcess cmd ["-crop", "x" ++ show i, fin, splitdir </> "x.png"] ""
+splitVertical :: Integer -> FilePath -> TempIO [FilePath]
+splitVertical i fin = do
+  cmd <- liftIO $ imageMagick' "convert"
+  tempdir <- ask
+  splitdir <- liftIO $ createTempDirectory tempdir "splitVertical"
+  void $ liftIO $
+    readProcess cmd ["-crop", "x" ++ show i, fin, splitdir </> "x.png"] ""
   map (splitdir </>) . sortBy (comparing getNumber) . filter isFile
-    <$> getDirectoryContents splitdir
+    <$> liftIO (getDirectoryContents splitdir)
   where getNumber :: String -> Integer
         getNumber = read . takeWhile isDigit . dropWhile (not . isDigit)
         isFile = (`notElem` [".", ".."])
 
 -- | Uses ImageMagick to join several images into pages of a PDF.
-joinPages :: [FilePath] -> FilePath -> IO FilePath
-joinPages fins tempdir = do
-  cmd <- imageMagick' "convert"
-  (fout, h) <- openTempFile tempdir "joinPages.pdf"
-  hClose h
-  void $ readProcess cmd (fins ++ [fout]) ""
+joinPages :: [FilePath] -> TempIO FilePath
+joinPages fins = do
+  cmd <- liftIO $ imageMagick' "convert"
+  fout <- newTempFile "joinPages.pdf"
+  void $ liftIO $ readProcess cmd (fins ++ [fout]) ""
   return fout

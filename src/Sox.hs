@@ -4,10 +4,10 @@ module Sox
 ) where
 
 import Data.Monoid (Monoid(..))
-import System.IO (hClose)
 
-import System.IO.Temp (openTempFile)
 import System.Process (readProcess)
+
+import TempFile
 
 data Audio
   = Silence
@@ -29,10 +29,9 @@ mixedFiles (Mix  x y) = let
   (c, d) = mixedFiles y
   in (a ++ c, b ++ d)
 
-renderAudio :: Audio -> FilePath -> IO FilePath
-renderAudio aud tempdir = do
-  (fout, h) <- openTempFile tempdir "render.wav"
-  hClose h
+renderAudio :: Audio -> TempIO FilePath
+renderAudio aud = do
+  fout <- newTempFile "render.wav"
   let (norm, inv) = mixedFiles aud
       makeNormal x = ["-v", "1", x]
       makeInvert x = ["-v", "-1", x]
@@ -44,5 +43,5 @@ renderAudio aud tempdir = do
           ++ concatMap makeNormal norm
           ++ concatMap makeInvert inv
           ++ [fout]
-  _ <- readProcess "sox" args ""
+  _ <- liftIO $ readProcess "sox" args ""
   return fout
