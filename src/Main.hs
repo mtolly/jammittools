@@ -3,12 +3,14 @@ module Main (main) where
 import Control.Applicative ((<$>), liftA2, (<|>))
 import Control.Monad (forM, (>=>))
 import Data.Char (toLower)
-import Data.List (isInfixOf, transpose, sort, nub, foldl')
+import Data.List (isInfixOf, transpose, sort, nub)
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe)
 import Data.Monoid (mconcat)
 import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
 
+import Text.PrettyPrint.Boxes
+  (text, vcat, left, render, hsep, top, (/+/))
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
@@ -129,20 +131,11 @@ showLibrary lib = let
     [ mapMaybe (trackTitle >=> titleToPart) trks
     | (_, info, trks) <- lib
     , (ttl, art) == (title info, artist info) ]
-  titleArtistParts = [ (t, a, partsFor t a) | (t, a) <- titleArtists ]
-  titleWidth  = foldl' max 5 [ length t | (t, _, _) <- titleArtistParts ]
-  artistWidth = foldl' max 6 [ length a | (_, a, _) <- titleArtistParts ]
-  partsWidth  = foldl' max 5 [ length p | (_, _, p) <- titleArtistParts ]
-  s `padTo` n = take n $ s ++ repeat ' '
-  padTAP (t, a, p) = concat
-    [ t `padTo` titleWidth
-    , " "
-    , a `padTo` artistWidth
-    , " "
-    , p ]
-  header = padTAP ("Title", "Artist", "Parts")
-  divider = replicate (titleWidth + 1 + artistWidth + 1 + partsWidth) '='
-  in unlines $ header : divider : map padTAP titleArtistParts
+  makeColumn h col = text h /+/ vcat left (map text col)
+  titleColumn = makeColumn "Title" $ map fst titleArtists
+  artistColumn = makeColumn "Artist" $ map snd titleArtists
+  partsColumn = makeColumn "Parts" $ map (uncurry partsFor) titleArtists
+  in render $ hsep 1 top [titleColumn, artistColumn, partsColumn]
 
 searchResults :: Args -> IO Library
 searchResults args = do

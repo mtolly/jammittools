@@ -20,5 +20,6 @@ Executable jammittools
                     , containers    == 0.5.*
                     , process       == 1.1.*
                     , temporary     == 1.1.*
+                    , boxes         == 0.1.*
   Ghc-Options:      -Wall
   C-Sources:        c/aifc2wav-5.1.c
