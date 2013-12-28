@@ -146,9 +146,11 @@ showLibrary lib = let
 searchResults :: Args -> IO Library
 searchResults args = do
   jmt <- case jammitDir args of
-    Nothing ->
-      fromMaybe (error "Couldn't find Jammit directory.") <$> findJammitDir
     Just j  -> return j
+    Nothing -> Env.lookupEnv "JAMMIT" >>= \mv -> case mv of
+      Just j -> return j
+      Nothing ->
+        fromMaybe (error "Couldn't find Jammit directory.") <$> findJammitDir
   db <- loadLibrary jmt
   return $
     searchBy title (searchTitle args) $ searchBy artist (searchArtist args) db
