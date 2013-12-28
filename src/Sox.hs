@@ -3,6 +3,7 @@ module Sox
 , renderAudio
 ) where
 
+import Control.Monad (void)
 import Data.Monoid (Monoid(..))
 
 import System.Process (readProcess)
@@ -31,17 +32,20 @@ mixedFiles (Mix  x y) = let
 
 renderAudio :: Audio -> TempIO FilePath
 renderAudio aud = do
-  fout <- newTempFile "render.wav"
   let (norm, inv) = mixedFiles aud
-      makeNormal x = ["-v", "1", x]
-      makeInvert x = ["-v", "-1", x]
-      args = case (norm, inv) of
-        ([] , [] ) -> ["-n", fout, "trim", "0", "0"]
-        ([x], [] ) -> makeNormal x ++ [fout]
-        ([] , [x]) -> makeInvert x ++ [fout]
-        (_  , _  ) -> ["--combine", "mix"]
-          ++ concatMap makeNormal norm
-          ++ concatMap makeInvert inv
-          ++ [fout]
-  _ <- liftIO $ readProcess "sox" args ""
-  return fout
+  case (norm, inv) of
+    ([fin], []) -> return fin
+    _ -> do
+      fout <- newTempFile "render.wav"
+      let makeNormal x = ["-v", "1", x]
+          makeInvert x = ["-v", "-1", x]
+          args = case (norm, inv) of
+            ([] , [] ) -> ["-n", fout, "trim", "0", "0"]
+            ([x], [] ) -> makeNormal x ++ [fout]
+            ([] , [x]) -> makeInvert x ++ [fout]
+            (_  , _  ) -> ["--combine", "mix"]
+              ++ concatMap makeNormal norm
+              ++ concatMap makeInvert inv
+              ++ [fout]
+      void $ liftIO $ readProcess "sox" args ""
+      return fout
