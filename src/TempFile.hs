@@ -8,12 +8,14 @@ module TempFile
 , liftIO
 ) where
 
+import Data.List (stripPrefix)
 import System.IO (hClose)
 import System.IO.Error (catchIOError)
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Reader (ask, ReaderT(..))
 import System.Directory (copyFile, renameFile)
+import System.FilePath (splitPath)
 import System.IO.Temp (openTempFile, withSystemTempDirectory)
 
 -- | A wrapper around IO with a designated directory for temporary files.
@@ -25,7 +27,10 @@ type TempIO = ReaderT FilePath IO
 runTempIO :: FilePath -> TempIO FilePath -> IO ()
 runTempIO fout act = withSystemTempDirectory "tempfile" $ \tmp -> do
   res <- runReaderT act tmp
-  catchIOError (renameFile res fout) $ \_ -> copyFile res fout
+  case stripPrefix (splitPath tmp) (splitPath res) of
+    Just f | ".." `notElem` f -> -- try rename if we know the file is in tmp
+      catchIOError (renameFile res fout) $ \_ -> copyFile res fout
+    _ -> copyFile res fout
 
 -- | Creates a new file in the temporary directory, given a template.
 newTempFile :: String -> TempIO FilePath
