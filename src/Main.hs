@@ -1,10 +1,10 @@
 module Main (main) where
 
 import Control.Applicative ((<$>), liftA2, (<|>))
-import Control.Monad (forM, (>=>))
+import Control.Monad (forM, (>=>), forM_)
 import Data.Char (toLower)
-import Data.List (isInfixOf, transpose, sort, nub)
-import Data.Maybe (mapMaybe, catMaybes, fromMaybe)
+import Data.List (isInfixOf, transpose, sort, nub, partition)
+import Data.Maybe (mapMaybe, catMaybes, fromMaybe, listToMaybe)
 import Data.Monoid (mconcat)
 import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
@@ -34,6 +34,7 @@ data Function
   | ShowDatabase
   | ExportSheet FilePath
   | ExportAudio FilePath
+  | ExportAll FilePath
   deriving (Eq, Ord, Show, Read)
 
 defaultArgs :: Args
@@ -113,6 +114,9 @@ argOpts =
   , Opt.Option ['a'] ["audio"]
     (Opt.ReqArg (\s a -> a { function = ExportAudio s }) "file")
     "function: export audio"
+  , Opt.Option ['x'] ["export"]
+    (Opt.OptArg (\ms a -> a { function = ExportAll (fromMaybe "." ms) }) "dir")
+    "function: export all to dir"
   ]
 
 loadLibrary :: FilePath -> IO Library
@@ -198,10 +202,7 @@ main = do
       case (f $ selectParts args, f $ rejectParts args) of
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
-        (Right yaifcs, Right naifcs) -> runTempIO fout $ do
-          ywavs <- map File <$> mapM aifcToWav yaifcs
-          nwavs <- map File <$> mapM aifcToWav naifcs
-          renderAudio $ mconcat ywavs `Mix` Invert (mconcat nwavs)
+        (Right yaifcs, Right naifcs) -> runAudio yaifcs naifcs fout
     ExportSheet fout -> do
       matches <- getSheetParts <$> searchResults args
       let f = mapM (`getOneResult` matches)
@@ -210,10 +211,58 @@ main = do
         Left  err   -> error err
         Right parts -> let
           systemHeight = sum $ map snd parts
-          pageHeight = 724 / 8.5 * 11 :: Double
-          defaultLines = round $ pageHeight / fromIntegral systemHeight
-          realLines = max 1 $ fromMaybe defaultLines $ pageLines args
-          in runSheet parts realLines fout
+          in runSheet parts (getPageLines systemHeight args) fout
+    ExportAll dout -> do
+      matches <- searchResults args
+      let sheets = getSheetParts matches
+          audios = getAudioParts matches
+          backingOrder = [Drums, Guitar, Keyboard, Bass, Vocal]
+          isGuitar p = elem (partToInstrument p) [Guitar, Bass]
+          (gtrs, nongtrs) = partition isGuitar [minBound .. maxBound]
+          chosenBacking = listToMaybe $ flip mapMaybe backingOrder $ \i ->
+            case getOneResult (Without i) audios of
+              Left  _  -> Nothing
+              Right fp -> Just (i, fp)
+      forM_ gtrs $ \p ->
+        case (getOneResult (Notation p) sheets, getOneResult (Tab p) sheets) of
+          (Right note, Right tab) -> let
+            parts = [note, tab]
+            systemHeight = sum $ map snd parts
+            fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
+            in runSheet [note, tab] (getPageLines systemHeight args) fout
+          _ -> return ()
+      forM_ nongtrs $ \p ->
+        case getOneResult (Notation p) sheets of
+          Right note -> let
+            fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
+            in runSheet [note] (getPageLines (snd note) args) fout
+          Left _ -> return ()
+      forM_ [minBound .. maxBound] $ \p ->
+        case getOneResult (Only p) audios of
+          Right fp -> let
+            fout = dout </> drop 4 (map toLower (show p) ++ ".wav")
+            in runAudio [fp] [] fout
+          Left _ -> return ()
+      case chosenBacking of
+        Nothing -> return ()
+        Just (inst, fback) -> let
+          others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
+          fout = dout </> "backing.wav"
+          in runAudio [fback] others fout
+
+getPageLines :: Integer -> Args -> Int
+getPageLines systemHeight args = let
+  pageHeight = 724 / 8.5 * 11 :: Double
+  defaultLines = round $ pageHeight / fromIntegral systemHeight
+  in max 1 $ fromMaybe defaultLines $ pageLines args
+
+-- | Takes a list of positive AIFCs, a list of negative AIFCs, and a WAV file
+-- to produce.
+runAudio :: [FilePath] -> [FilePath] -> FilePath -> IO ()
+runAudio pos neg fout = runTempIO fout $ do
+  posWavs <- map File <$> mapM aifcToWav pos
+  negWavs <- map File <$> mapM aifcToWav neg
+  renderAudio $ mconcat posWavs `Mix` Invert (mconcat negWavs)
 
 runSheet :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
 runSheet trks lns fout = runTempIO fout $ do

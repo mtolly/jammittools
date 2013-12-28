@@ -16,8 +16,9 @@ but `jammittools` tries looking in your Program Files so you shouldn't have to d
 
     jammittools -? # print usage
     jammittools -d # display library
-    jammittools -s out.pdf -y <parts> # export sheet music
-    jammittools -a out.wav -y <parts> -n <parts inverted> # export audio
+    jammittools -x <dir> # export all parts sheet music & audio to directory
+    jammittools -s <file.pdf> -y <parts> # export sheet music
+    jammittools -a <file.wav> -y <parts> -n <parts inverted> # export audio
 
 Other flags:
 
