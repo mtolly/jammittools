@@ -9,9 +9,10 @@ import Data.Monoid (mconcat)
 import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
 
+import Control.Concurrent.Thread (forkIO)
+import System.FilePath ((</>))
 import Text.PrettyPrint.Boxes
   (text, vcat, left, render, hsep, top, (/+/))
-import System.FilePath ((</>))
 
 import AIFC2WAV
 import ImageMagick
@@ -224,7 +225,7 @@ main = do
             case getOneResult (Without i) audios of
               Left  _  -> Nothing
               Right fp -> Just (i, fp)
-      forM_ gtrs $ \p ->
+      (_, wait1) <- forkIO $ forM_ gtrs $ \p ->
         case (getOneResult (Notation p) sheets, getOneResult (Tab p) sheets) of
           (Right note, Right tab) -> let
             parts = [note, tab]
@@ -232,13 +233,13 @@ main = do
             fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
             in runSheet [note, tab] (getPageLines systemHeight args) fout
           _ -> return ()
-      forM_ nongtrs $ \p ->
+      (_, wait2) <- forkIO $ forM_ nongtrs $ \p ->
         case getOneResult (Notation p) sheets of
           Left  _    -> return ()
           Right note -> let
             fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
             in runSheet [note] (getPageLines (snd note) args) fout
-      forM_ [minBound .. maxBound] $ \p ->
+      (_, wait3) <- forkIO $ forM_ [minBound .. maxBound] $ \p ->
         case getOneResult (Only p) audios of
           Left  _  -> return ()
           Right fp -> let
@@ -250,6 +251,7 @@ main = do
           others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
           fout = dout </> "backing.wav"
           in runAudio [fback] others fout
+      sequence_ [wait1, wait2, wait3]
 
 getPageLines :: Integer -> Args -> Int
 getPageLines systemHeight args = let
