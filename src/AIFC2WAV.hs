@@ -21,8 +21,8 @@ aifcToWav aifc = do
   wav <- newTempFile "aifcToWav.wav"
   code <- liftIO $
     withCString "aifc2wav" $ \progC ->
-    withCString aifc $ \aifcC ->
-    withCString wav $ \wavC ->
+    withCString aifc       $ \aifcC ->
+    withCString wav        $ \wavC  ->
     withArrayLen [progC, aifcC, wavC] $ \n v -> do
       reset_predictors
       aifc2wav_main (fromIntegral n) v

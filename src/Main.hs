@@ -34,7 +34,7 @@ data Function
   | ShowDatabase
   | ExportSheet FilePath
   | ExportAudio FilePath
-  | ExportAll FilePath
+  | ExportAll   FilePath
   deriving (Eq, Ord, Show, Read)
 
 defaultArgs :: Args
@@ -136,9 +136,9 @@ showLibrary lib = let
     | (_, info, trks) <- lib
     , (ttl, art) == (title info, artist info) ]
   makeColumn h col = text h /+/ vcat left (map text col)
-  titleColumn = makeColumn "Title" $ map fst titleArtists
-  artistColumn = makeColumn "Artist" $ map snd titleArtists
-  partsColumn = makeColumn "Parts" $ map (uncurry partsFor) titleArtists
+  titleColumn  = makeColumn "Title"  $ map fst                titleArtists
+  artistColumn = makeColumn "Artist" $ map snd                titleArtists
+  partsColumn  = makeColumn "Parts"  $ map (uncurry partsFor) titleArtists
   in render $ hsep 1 top [titleColumn, artistColumn, partsColumn]
 
 -- | Loads the Jammit library, and applies the search terms from the arguments
@@ -171,11 +171,12 @@ getSheetParts lib = do
   (dir, _info, trks) <- lib
   trk <- trks
   case (trackTitle trk >>= \t -> titleToPart t, scoreSystemInterval trk) of
-    (Just p, Just ht) -> if elem (partToInstrument p) [Guitar, Bass]
-      then [sheet, tab]
-      else [sheet]
-      where sheet = (Notation p, (dir </> (identifier trk ++ "_jcfn"), ht))
-            tab   = (Tab      p, (dir </> (identifier trk ++ "_jcft"), ht))
+    (Just p, Just ht) -> let
+      sheet = (Notation p, (dir </> (identifier trk ++ "_jcfn"), ht))
+      tab   = (Tab      p, (dir </> (identifier trk ++ "_jcft"), ht))
+      in if elem (partToInstrument p) [Guitar, Bass]
+        then [sheet, tab]
+        else [sheet]
     _ -> []
 
 -- | If there is exactly one pair with the given first element, returns its
@@ -199,16 +200,14 @@ main = do
       putStr $ showLibrary matches
     ExportAudio fout -> do
       matches <- getAudioParts <$> searchResults args
-      let f = mapM (`getOneResult` matches)
-            . mapMaybe charToAudioPart
+      let f = mapM (`getOneResult` matches) . mapMaybe charToAudioPart
       case (f $ selectParts args, f $ rejectParts args) of
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
         (Right yaifcs, Right naifcs) -> runAudio yaifcs naifcs fout
     ExportSheet fout -> do
       matches <- getSheetParts <$> searchResults args
-      let f = mapM (`getOneResult` matches)
-            . mapMaybe charToSheetPart
+      let f = mapM (`getOneResult` matches) . mapMaybe charToSheetPart
       case f $ selectParts args of
         Left  err   -> error err
         Right parts -> let
@@ -235,18 +234,18 @@ main = do
           _ -> return ()
       forM_ nongtrs $ \p ->
         case getOneResult (Notation p) sheets of
+          Left  _    -> return ()
           Right note -> let
             fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
             in runSheet [note] (getPageLines (snd note) args) fout
-          Left _ -> return ()
       forM_ [minBound .. maxBound] $ \p ->
         case getOneResult (Only p) audios of
+          Left  _  -> return ()
           Right fp -> let
             fout = dout </> drop 4 (map toLower (show p) ++ ".wav")
             in runAudio [fp] [] fout
-          Left _ -> return ()
       case chosenBacking of
-        Nothing -> return ()
+        Nothing            -> return ()
         Just (inst, fback) -> let
           others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
           fout = dout </> "backing.wav"
@@ -254,7 +253,7 @@ main = do
 
 getPageLines :: Integer -> Args -> Int
 getPageLines systemHeight args = let
-  pageHeight = 724 / 8.5 * 11 :: Double
+  pageHeight   = 724 / 8.5 * 11 :: Double
   defaultLines = round $ pageHeight / fromIntegral systemHeight
   in max 1 $ fromMaybe defaultLines $ pageLines args
 

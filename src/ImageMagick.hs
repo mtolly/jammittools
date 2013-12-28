@@ -58,8 +58,9 @@ firstJustM (mx : xs) = mx >>= \x -> case x of
 
 -- | Stick images together vertically into one long image.
 connectVertical :: [FilePath] -> TempIO FilePath
+connectVertical [fin] = return fin
 connectVertical fins = do
-  cmd <- liftIO $ imageMagick' "montage"
+  cmd  <- liftIO $ imageMagick' "montage"
   fout <- newTempFile "connectVertical.png"
   void $ liftIO $ readProcess cmd
     (["-geometry", "100%", "-tile", "1x"] ++ fins ++ [fout]) ""
@@ -68,8 +69,8 @@ connectVertical fins = do
 -- | Splits an image vertically into chunks of a given height.
 splitVertical :: Integer -> FilePath -> TempIO [FilePath]
 splitVertical i fin = do
-  cmd <- liftIO $ imageMagick' "convert"
-  tempdir <- ask
+  cmd      <- liftIO $ imageMagick' "convert"
+  tempdir  <- ask
   splitdir <- liftIO $ createTempDirectory tempdir "splitVertical"
   void $ liftIO $
     readProcess cmd ["-crop", "x" ++ show i, fin, splitdir </> "x.png"] ""
@@ -82,7 +83,7 @@ splitVertical i fin = do
 -- | Joins several images into a PDF, where each image is a page.
 joinPages :: [FilePath] -> TempIO FilePath
 joinPages fins = do
-  cmd <- liftIO $ imageMagick' "convert"
+  cmd  <- liftIO $ imageMagick' "convert"
   fout <- newTempFile "joinPages.pdf"
   void $ liftIO $ readProcess cmd (fins ++ [fout]) ""
   return fout
