@@ -3,14 +3,15 @@ module Main (main) where
 import Control.Applicative ((<$>), liftA2, (<|>))
 import Control.Monad (forM, (>=>), forM_)
 import Data.Char (toLower)
-import Data.List (isInfixOf, transpose, sort, nub, partition)
+import Data.List (isInfixOf, transpose, sort, nub, partition, isPrefixOf)
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe, listToMaybe)
 import Data.Monoid (mconcat)
 import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
 
 import Control.Concurrent.Thread (forkIO)
-import System.FilePath ((</>))
+import System.Directory (getDirectoryContents)
+import System.FilePath ((</>), splitFileName)
 import Text.PrettyPrint.Boxes
   (text, vcat, left, render, hsep, top, (/+/))
 
@@ -270,7 +271,10 @@ runAudio pos neg fout = runTempIO fout $ do
 runSheet :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
 runSheet trks lns fout = runTempIO fout $ do
   trkLns <- forM trks $ \(fp, ht) -> do
-    cnct <- connectVertical [fp ++ "*"]
+    let (dir, file) = splitFileName fp
+    ls <- liftIO $ getDirectoryContents dir
+    cnct <- connectVertical $
+      map (dir </>) $ sort $ filter (file `isPrefixOf`) ls
     splitVertical ht cnct
   pages <- forM (map concat $ chunksOf lns $ transpose trkLns) $ \pg ->
     connectVertical pg
