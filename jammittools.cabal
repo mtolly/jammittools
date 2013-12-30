@@ -22,7 +22,7 @@ Executable jammittools
                     , boxes         == 0.1.*
                     , transformers  == 0.3.*
                     , threads       == 0.5.*
-  Ghc-Options:      -Wall
+  Ghc-Options:      -Wall -threaded
   C-Sources:        c/aifc2wav-5.1.c
 
 Source-Repository head

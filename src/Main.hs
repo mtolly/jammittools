@@ -117,7 +117,7 @@ argOpts =
     (Opt.ReqArg (\s a -> a { function = ExportAudio s }) "file")
     "function: export audio"
   , Opt.Option ['x'] ["export"]
-    (Opt.OptArg (\ms a -> a { function = ExportAll (fromMaybe "." ms) }) "dir")
+    (Opt.ReqArg (\s a -> a { function = ExportAll s }) "dir")
     "function: export all to dir"
   ]
 
