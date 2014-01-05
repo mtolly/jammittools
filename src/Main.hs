@@ -5,13 +5,12 @@ import Control.Monad (forM, (>=>), forM_)
 import Data.Char (toLower)
 import Data.List (isInfixOf, transpose, sort, nub, partition, isPrefixOf)
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe, listToMaybe)
-import Data.Monoid (mconcat)
 import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
 
 import Control.Concurrent.Thread (forkIO)
 import System.Directory (getDirectoryContents)
-import System.FilePath ((</>), splitFileName)
+import System.FilePath ((</>), splitFileName, takeFileName)
 import Text.PrettyPrint.Boxes
   (text, vcat, left, render, hsep, top, (/+/))
 
@@ -264,9 +263,14 @@ getPageLines systemHeight args = let
 -- to produce.
 runAudio :: [FilePath] -> [FilePath] -> FilePath -> IO ()
 runAudio pos neg fout = runTempIO fout $ do
-  posWavs <- map File <$> mapM aifcToWav pos
-  negWavs <- map File <$> mapM aifcToWav neg
-  renderAudio $ mconcat posWavs `Mix` Invert (mconcat negWavs)
+  let tttDrums     = "793EAAE0-6761-44D7-9A9A-1FB451A2A438_jcfx"
+      tttDrumsBack = "37EE5AA5-4049-4CED-844A-D34F6B165F67_jcfx"
+      aifcToWav' a = if takeFileName a `elem` [tttDrums, tttDrumsBack]
+        then Pad (Samples 38) . File <$> aifcToWav a
+        else File <$> aifcToWav a
+  posWavs <- map (\w -> ( 1, w)) <$> mapM aifcToWav' pos
+  negWavs <- map (\w -> (-1, w)) <$> mapM aifcToWav' neg
+  renderAudio $ Mix (posWavs ++ negWavs)
 
 runSheet :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
 runSheet trks lns fout = runTempIO fout $ do

@@ -1,51 +1,64 @@
 module Sox
 ( Audio(..)
+, Time(..)
 , renderAudio
 ) where
 
-import Control.Monad (void)
-import Data.Monoid (Monoid(..))
+import Control.Monad (void, forM)
 
 import System.Process (readProcess)
 
 import TempFile
 
 data Audio
-  = Silence
-  | File FilePath
-  | Invert Audio
-  | Mix Audio Audio
+  = Empty                 -- ^ An empty stereo file
+  | File FilePath         -- ^ An existing (stereo) file
+  | Pad Time Audio        -- ^ Pad audio start with silence
+  | Mix [(Double, Audio)] -- ^ Add audio sample-wise, also changing volumes
+  | Concat [Audio]        -- ^ Sequentially connect audio
   deriving (Eq, Ord, Show, Read)
 
-instance Monoid Audio where
-  mappend = Mix
-  mempty  = Silence
+data Time
+  = Seconds Double
+  | Samples Integer
+  deriving (Eq, Ord, Show, Read)
 
-mixedFiles :: Audio -> ([FilePath], [FilePath])
-mixedFiles Silence    = ([], [])
-mixedFiles (File   f) = ([f], [])
-mixedFiles (Invert x) = let (a, b) = mixedFiles x in (b, a)
-mixedFiles (Mix  x y) = let
-  (a, b) = mixedFiles x
-  (c, d) = mixedFiles y
-  in (a ++ c, b ++ d)
+showTime :: Time -> String
+showTime (Seconds d) = show d
+showTime (Samples i) = show i ++ "s"
 
 renderAudio :: Audio -> TempIO FilePath
-renderAudio aud = do
-  let (norm, inv) = mixedFiles aud
-  case (norm, inv) of
-    ([fin], []) -> return fin
-    _ -> do
+renderAudio aud = case aud of
+  Empty -> do
+    fout <- newTempFile "render.wav"
+    void $ liftIO $
+      readProcess "sox" (["-n", fout] ++ words "trim 0 0 channels 2") ""
+    return fout
+  File f -> return f
+  Pad t x -> do
+    fin <- renderAudio x
+    fout <- newTempFile "render.wav"
+    void $ liftIO $ readProcess "sox" [fin, fout, "pad", showTime t] ""
+    return fout
+  Mix xs -> case xs of
+    [] -> renderAudio Empty
+    [(d, x)] -> do
+      fin <- renderAudio x
       fout <- newTempFile "render.wav"
-      let makeNormal x = ["-v", "1", x]
-          makeInvert x = ["-v", "-1", x]
-          args = case (norm, inv) of
-            ([] , [] ) -> ["-n", fout, "trim", "0", "0"]
-            ([x], [] ) -> makeNormal x ++ [fout]
-            ([] , [x]) -> makeInvert x ++ [fout]
-            (_  , _  ) -> ["--combine", "mix"]
-              ++ concatMap makeNormal norm
-              ++ concatMap makeInvert inv
-              ++ [fout]
-      void $ liftIO $ readProcess "sox" args ""
+      void $ liftIO $ readProcess "sox" ["-v", show d, fin, fout] ""
+      return fout
+    _ -> do
+      dfins <- forM xs $ \(d, x) -> do
+        fin <- renderAudio x
+        return (d, fin)
+      let argsin = concatMap (\(d, fin) -> ["-v", show d, fin]) dfins
+      fout <- newTempFile "render.wav"
+      void $ liftIO $ readProcess "sox" (argsin ++ [fout]) ""
+      return fout
+  Concat xs -> case xs of
+    [] -> renderAudio Empty
+    _ -> do
+      fins <- mapM renderAudio xs
+      fout <- newTempFile "render.wav"
+      void $ liftIO $ readProcess "sox" (fins ++ [fout]) ""
       return fout
