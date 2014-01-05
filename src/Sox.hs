@@ -48,7 +48,7 @@ renderAudio aud = case aud of
       fin <- renderAudio x
       fout <- newTempFile "render.wav"
       void $ liftIO $
-        readProcess "sox" ["--combine", "mix", "-v", show d, fin, fout] ""
+        readProcess "sox" ["-v", show d, fin, fout] ""
       return fout
     _ -> do
       dfins <- forM xs $ \(d, x) -> do
