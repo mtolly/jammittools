@@ -2,9 +2,11 @@ module Sox
 ( Audio(..)
 , Time(..)
 , renderAudio
+, optimize
 ) where
 
-import Control.Monad (void, forM)
+import Control.Arrow (first)
+import Control.Monad (void, forM, guard)
 
 import System.Process (readProcess)
 
@@ -14,7 +16,7 @@ data Audio
   = Empty                 -- ^ An empty stereo file
   | File FilePath         -- ^ An existing (stereo) file
   | Pad Time Audio        -- ^ Pad audio start with silence
-  | Mix [(Double, Audio)] -- ^ Add audio sample-wise, also changing volumes
+  | Mix [(Double, Audio)] -- ^ Add audio sample-wise, also multiplying volumes
   | Concat [Audio]        -- ^ Sequentially connect audio
   deriving (Eq, Ord, Show, Read)
 
@@ -64,3 +66,30 @@ renderAudio aud = case aud of
       fout <- newTempFile "render.wav"
       void $ liftIO $ readProcess "sox" (fins ++ [fout]) ""
       return fout
+
+optimize :: Audio -> Audio
+optimize aud = case aud of
+  Pad (Samples 0) x -> x
+  Pad (Seconds 0) x -> x
+  Mix xs -> let
+    xs' = do
+      (d, x) <- xs
+      guard $ d /= 0
+      case optimize x of
+        Mix ys -> map (first (* d)) ys
+        x'     -> [(d, x')]
+    in case xs' of
+      []       -> Empty
+      [(1, x)] -> x
+      _        -> Mix xs'
+  Concat xs -> let
+    xs' = do
+      x <- xs
+      case optimize x of
+        Concat ys -> ys
+        x'        -> [x']
+    in case xs' of
+      []  -> Empty
+      [x] -> x
+      _   -> Concat xs'
+  _ -> aud

@@ -8,7 +8,6 @@ import Data.Maybe (mapMaybe, catMaybes, fromMaybe, listToMaybe)
 import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
 
-import Control.Concurrent.Thread (forkIO)
 import System.Directory (getDirectoryContents)
 import System.FilePath ((</>), splitFileName, takeFileName)
 import Text.PrettyPrint.Boxes
@@ -225,7 +224,7 @@ main = do
             case getOneResult (Without i) audios of
               Left  _  -> Nothing
               Right fp -> Just (i, fp)
-      (_, wait1) <- forkIO $ forM_ gtrs $ \p ->
+      forM_ gtrs $ \p ->
         case (getOneResult (Notation p) sheets, getOneResult (Tab p) sheets) of
           (Right note, Right tab) -> let
             parts = [note, tab]
@@ -233,13 +232,13 @@ main = do
             fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
             in runSheet [note, tab] (getPageLines systemHeight args) fout
           _ -> return ()
-      (_, wait2) <- forkIO $ forM_ nongtrs $ \p ->
+      forM_ nongtrs $ \p ->
         case getOneResult (Notation p) sheets of
           Left  _    -> return ()
           Right note -> let
             fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
             in runSheet [note] (getPageLines (snd note) args) fout
-      (_, wait3) <- forkIO $ forM_ [minBound .. maxBound] $ \p ->
+      forM_ [minBound .. maxBound] $ \p ->
         case getOneResult (Only p) audios of
           Left  _  -> return ()
           Right fp -> let
@@ -251,7 +250,6 @@ main = do
           others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
           fout = dout </> "backing.wav"
           in runAudio [fback] others fout
-      sequence_ [wait1, wait2, wait3]
 
 getPageLines :: Integer -> Args -> Int
 getPageLines systemHeight args = let
@@ -263,6 +261,10 @@ getPageLines systemHeight args = let
 -- to produce.
 runAudio :: [FilePath] -> [FilePath] -> FilePath -> IO ()
 runAudio pos neg fout = runTempIO fout $ do
+  -- I've only found one audio file where the instruments are not aligned:
+  -- the drums and drums backing track for Take the Time are 38 samples ahead
+  -- of the other instruments. So as a hack, we pad the front of them by 38
+  -- samples to line things up.
   let tttDrums     = "793EAAE0-6761-44D7-9A9A-1FB451A2A438_jcfx"
       tttDrumsBack = "37EE5AA5-4049-4CED-844A-D34F6B165F67_jcfx"
       aifcToWav' a = if takeFileName a `elem` [tttDrums, tttDrumsBack]
@@ -270,7 +272,8 @@ runAudio pos neg fout = runTempIO fout $ do
         else File <$> aifcToWav a
   posWavs <- map (\w -> ( 1, w)) <$> mapM aifcToWav' pos
   negWavs <- map (\w -> (-1, w)) <$> mapM aifcToWav' neg
-  renderAudio $ Mix (posWavs ++ negWavs)
+  liftIO $ print $ optimize $ Mix (posWavs ++ negWavs)
+  renderAudio $ optimize $ Mix (posWavs ++ negWavs)
 
 runSheet :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
 runSheet trks lns fout = runTempIO fout $ do
