@@ -272,7 +272,6 @@ runAudio pos neg fout = runTempIO fout $ do
         else File <$> aifcToWav a
   posWavs <- map (\w -> ( 1, w)) <$> mapM aifcToWav' pos
   negWavs <- map (\w -> (-1, w)) <$> mapM aifcToWav' neg
-  liftIO $ print $ optimize $ Mix (posWavs ++ negWavs)
   renderAudio $ optimize $ Mix (posWavs ++ negWavs)
 
 runSheet :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
