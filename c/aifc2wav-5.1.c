@@ -47,18 +47,8 @@ static int step_table[89] = {
     15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
 };
 
-// onyxite: these save the last sample in each packet
-static short predictorLeft = 0;
-static short predictorRight = 0;
-
-void reset_predictors()
-{
-  predictorLeft = 0;
-  predictorRight = 0;
-}
-
 /* parse a chunk - waits a 34 bytes buffer, returns a little endian buffer */
-void decode_chunk(unsigned char *input, unsigned char *output, int channel)
+void decode_chunk(unsigned char *input, unsigned char *output, short *static_predictor)
 {
   char d;
   int i;
@@ -76,7 +66,7 @@ void decode_chunk(unsigned char *input, unsigned char *output, int channel)
   predictor |= d&128;
 
   // onyxite: use this channel's last packet's last sample as predictor
-  predictor = channel ? predictorRight : predictorLeft;
+  predictor = *static_predictor;
 
   /* is this necessary ? */
   if (step_index < 0) step_index = 0;
@@ -156,10 +146,7 @@ void decode_chunk(unsigned char *input, unsigned char *output, int channel)
 
     // onyxite: save this sample so (if it's the last sample in this packet)
     // it becomes the predictor for the next packet in this channel
-    if (channel)
-      predictorRight = predictor;
-    else
-      predictorLeft = predictor;
+    *static_predictor = predictor;
 
     step = step_table[step_index];
   }
@@ -272,6 +259,9 @@ int aifc2wav_main(int n, char **v)
   int sound_type=0;        /* the type of the data in the sound file */
   long riff_size;        /* the riff size - depends of the type of data sound */
   short *last;                /* for SDX2 files */
+
+  short predictor_left = 0;
+  short predictor_right = 0;
 
   if (n != 3) {
     fprintf(stderr, "usage: %s <input AIFC file> <output WAV file>\n", v[0]);
@@ -734,8 +724,7 @@ not_sdx2:
       goto bad_file;
     }
 
-    // onyxite: 0 means left channel
-    decode_chunk(in, out, 0);
+    decode_chunk(in, out, &predictor_left);
 
     /* if stereo mode the next chunk is right channel */
     if (nb_chans == 2) {
@@ -746,8 +735,7 @@ not_sdx2:
         goto bad_file;
       }
 
-      // onyxite: 1 means right channel
-      decode_chunk(in, out2, 1);
+      decode_chunk(in, out2, &predictor_right);
 
       /* we must now interleave the two channels */
 

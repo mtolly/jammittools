@@ -12,9 +12,6 @@ import TempFile
 foreign import ccall "aifc2wav_main" aifc2wav_main
   :: CInt -> Ptr (Ptr CChar) -> IO CInt
 
-foreign import ccall "reset_predictors" reset_predictors
-  :: IO ()
-
 -- | Given a (new-style) IMA4-compressed AIFC file, converts it to a WAV file.
 aifcToWav :: FilePath -> TempIO FilePath
 aifcToWav aifc = do
@@ -23,8 +20,7 @@ aifcToWav aifc = do
     withCString "aifc2wav" $ \progC ->
     withCString aifc       $ \aifcC ->
     withCString wav        $ \wavC  ->
-    withArrayLen [progC, aifcC, wavC] $ \n v -> do
-      reset_predictors
+    withArrayLen [progC, aifcC, wavC] $ \n v ->
       aifc2wav_main (fromIntegral n) v
   if code == 0
     then return wav
