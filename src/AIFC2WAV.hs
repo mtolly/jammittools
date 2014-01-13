@@ -9,7 +9,7 @@ import Foreign.Ptr (Ptr)
 
 import TempFile
 
-foreign import ccall "aifc2wav_main" aifc2wav_main
+foreign import ccall unsafe "aifc2wav_main" aifc2wav_main
   :: CInt -> Ptr (Ptr CChar) -> IO CInt
 
 -- | Given a (new-style) IMA4-compressed AIFC file, converts it to a WAV file.
