@@ -3,6 +3,7 @@ module Main (main) where
 import Control.Applicative ((<$>), liftA2, (<|>))
 import Control.Monad (forM, (>=>), forM_)
 import Data.Char (toLower)
+import Data.Either (rights)
 import Data.List (isInfixOf, transpose, sort, nub, partition, isPrefixOf)
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe, listToMaybe)
 import qualified System.Console.GetOpt as Opt
@@ -35,6 +36,8 @@ data Function
   | ExportSheet FilePath
   | ExportAudio FilePath
   | ExportAll   FilePath
+  | TryAudio    FilePath
+  | TryBacking  FilePath
   deriving (Eq, Ord, Show, Read)
 
 defaultArgs :: Args
@@ -205,6 +208,12 @@ main = do
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
         (Right yaifcs, Right naifcs) -> runAudio yaifcs naifcs fout
+    TryAudio fout -> do
+      matches <- getAudioParts <$> searchResults args
+      let selected = rights $ map (`getOneResult` matches) $
+            mapMaybe charToAudioPart $ selectParts args
+      runAudio selected [] fout
+    TryBacking fout -> undefined
     ExportSheet fout -> do
       matches <- getSheetParts <$> searchResults args
       let f = mapM (`getOneResult` matches) . mapMaybe charToSheetPart
