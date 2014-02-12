@@ -120,6 +120,12 @@ argOpts =
   , Opt.Option ['x'] ["export"]
     (Opt.ReqArg (\s a -> a { function = ExportAll s }) "dir")
     "function: export all to dir"
+  , Opt.Option ['u'] ["tryaudio"]
+    (Opt.ReqArg (\s a -> a { function = TryAudio s }) "file")
+    "function: <undocumented>"
+  , Opt.Option ['b'] ["trybacking"]
+    (Opt.ReqArg (\s a -> a { function = TryBacking s }) "file")
+    "function: <undocumented>"
   ]
 
 loadLibrary :: FilePath -> IO Library
@@ -213,7 +219,32 @@ main = do
       let selected = rights $ map (`getOneResult` matches) $
             mapMaybe charToAudioPart $ selectParts args
       runAudio selected [] fout
-    TryBacking fout -> undefined
+    TryBacking fout -> do
+      matches <- getAudioParts <$> searchResults args
+      let rejected = map audioPartToInstrument $ mapMaybe charToAudioPart $
+            rejectParts args
+          backingOrder = [Drums, Guitar, Keyboard, Bass, Vocal]
+          possibleBacks =
+            [ (i, f)
+            | i <- backingOrder
+            , i `elem` rejected
+            , (Without i', f) <- matches
+            , i == i'
+            ]
+      case possibleBacks of
+        [] -> case [ (i, f) | (Without i, f) <- matches ] of
+          []         -> error "No Jammit backing track found."
+          (i, f) : _ -> let
+            addFiles = [ f' | (Only p, f') <- matches, partToInstrument p == i ]
+            in runAudio (f : addFiles) [] fout
+        (i, f) : _ -> let
+          remInsts = filter (/= i) rejected
+          remFiles =
+            [ f'
+            | (Only p, f') <- matches
+            , partToInstrument p `elem` remInsts
+            ]
+          in runAudio [f] remFiles fout
     ExportSheet fout -> do
       matches <- getSheetParts <$> searchResults args
       let f = mapM (`getOneResult` matches) . mapMaybe charToSheetPart
