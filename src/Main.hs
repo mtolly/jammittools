@@ -21,14 +21,13 @@ import Sox
 import TempFile
 
 data Args = Args
-  { searchTitle  :: String
-  , searchArtist :: String
-  , selectParts  :: String
-  , rejectParts  :: String
-  , pageLines    :: Maybe Int
-  , jammitDir    :: Maybe FilePath
-  , function     :: Function
-  } deriving (Eq, Ord, Show, Read)
+  { filterLibrary :: Library -> Library
+  , selectParts   :: String
+  , rejectParts   :: String
+  , pageLines     :: Maybe Int
+  , jammitDir     :: Maybe FilePath
+  , function      :: Function
+  }
 
 data Function
   = PrintUsage
@@ -42,13 +41,12 @@ data Function
 
 defaultArgs :: Args
 defaultArgs = Args
-  { searchTitle  = ""
-  , searchArtist = ""
-  , selectParts  = ""
-  , rejectParts  = ""
-  , pageLines    = Nothing
-  , jammitDir    = Nothing
-  , function     = PrintUsage
+  { filterLibrary = id
+  , selectParts   = ""
+  , rejectParts   = ""
+  , pageLines     = Nothing
+  , jammitDir     = Nothing
+  , function      = PrintUsage
   }
 
 partToChar :: Part -> Char
@@ -81,18 +79,35 @@ charToAudioPart c = let
 
 type Library = [(FilePath, Info, [Track])]
 
-searchBy :: (Info -> String) -> String -> Library -> Library
-searchBy f str = let str' = map toLower str in
+fuzzySearchBy :: (Info -> String) -> String -> Library -> Library
+fuzzySearchBy f str = let str' = map toLower str in
   filter $ \(_, info, _) -> str' `isInfixOf` map toLower (f info)
+
+exactSearchBy :: (Info -> String) -> String -> Library -> Library
+exactSearchBy f str = filter $ \(_, info, _) -> f info == str
 
 argOpts :: [Opt.OptDescr (Args -> Args)]
 argOpts =
   [ Opt.Option ['t'] ["title"]
-    (Opt.ReqArg (\s a -> a { searchTitle = s }) "str")
+    (Opt.ReqArg
+      (\s a -> a { filterLibrary = fuzzySearchBy title s . filterLibrary a })
+      "str")
     "search by song title"
   , Opt.Option ['r'] ["artist"]
-    (Opt.ReqArg (\s a -> a { searchArtist = s }) "str")
+    (Opt.ReqArg
+      (\s a -> a { filterLibrary = fuzzySearchBy artist s . filterLibrary a })
+      "str")
     "search by song artist"
+  , Opt.Option ['T'] ["title-exact"]
+    (Opt.ReqArg
+      (\s a -> a { filterLibrary = exactSearchBy title s . filterLibrary a })
+      "str")
+    "search by song title (exact)"
+  , Opt.Option ['R'] ["artist-exact"]
+    (Opt.ReqArg
+      (\s a -> a { filterLibrary = exactSearchBy artist s . filterLibrary a })
+      "str")
+    "search by song artist (exact)"
   , Opt.Option ['y'] ["yesparts"]
     (Opt.ReqArg (\s a -> a { selectParts = s }) "parts")
     "parts to appear in sheet music or audio"
@@ -122,10 +137,10 @@ argOpts =
     "function: export all to dir"
   , Opt.Option ['u'] ["tryaudio"]
     (Opt.ReqArg (\s a -> a { function = TryAudio s }) "file")
-    "function: <undocumented>"
+    "function: see below"
   , Opt.Option ['b'] ["trybacking"]
     (Opt.ReqArg (\s a -> a { function = TryBacking s }) "file")
-    "function: <undocumented>"
+    "function: see below"
   ]
 
 loadLibrary :: FilePath -> IO Library
@@ -161,8 +176,7 @@ searchResults args = do
       Nothing ->
         fromMaybe (error "Couldn't find Jammit directory.") <$> findJammitDir
   db <- loadLibrary jmt
-  return $
-    searchBy title (searchTitle args) $ searchBy artist (searchArtist args) db
+  return $ filterLibrary args db
 
 -- | A mapping from audio part to absolute filename of an audio file.
 getAudioParts :: Library -> [(AudioPart, FilePath)]
@@ -204,6 +218,14 @@ main = do
       prog <- Env.getProgName
       let header = "Usage: " ++ prog ++ " [options]"
       putStr $ Opt.usageInfo header argOpts
+      mapM_ putStrLn
+        [ "-y <parts> -u <file> exports an audio file where parts not in the"
+        , "library are replaced with silence."
+        , "-n <instruments> -b <file> exports an audio file that tries to"
+        , "remove the given instruments if those backing tracks are present."
+        , "Combining the two functions, each part will show up in *either* the"
+        , "tryaudio or trybacking files depending on whether you have it."
+        ]
     ShowDatabase -> do
       matches <- searchResults args
       putStr $ showLibrary matches
