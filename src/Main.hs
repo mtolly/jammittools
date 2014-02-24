@@ -6,6 +6,7 @@ import Data.Char (toLower)
 import Data.Either (rights)
 import Data.List (isInfixOf, transpose, sort, nub, partition, isPrefixOf)
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe, listToMaybe)
+import Data.Version (showVersion)
 import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
 
@@ -17,6 +18,7 @@ import Text.PrettyPrint.Boxes
 import AIFC2WAV
 import ImageMagick
 import Jammit
+import qualified Paths_jammittools as Paths
 import Sox
 import TempFile
 
@@ -216,6 +218,7 @@ main = do
   case function args of
     PrintUsage -> do
       prog <- Env.getProgName
+      putStrLn $ "jammittools v" ++ showVersion Paths.version
       let header = "Usage: " ++ prog ++ " [options]"
       putStr $ Opt.usageInfo header argOpts
       mapM_ putStrLn
