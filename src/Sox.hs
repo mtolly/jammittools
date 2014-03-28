@@ -55,9 +55,10 @@ renderAudio aud = case aud of
         fin <- renderAudio x
         return (d, fin)
       let argsin = concatMap
-            (\(d, fin) -> ["--combine", "mix", "-v", show d, fin]) dfins
+            (\(d, fin) -> ["-v", show d, fin]) dfins
       fout <- newTempFile "render.wav"
-      void $ liftIO $ readProcess "sox" (argsin ++ [fout]) ""
+      void $ liftIO $
+        readProcess "sox" (["--combine", "mix"] ++ argsin ++ [fout]) ""
       return fout
   Concat xs -> case xs of
     [] -> renderAudio Empty
