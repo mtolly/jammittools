@@ -50,7 +50,3 @@ to clean it up. The drums backing track is preferred because drums leaves the mo
 noise when you remove it from a different backing track.
 
     jammittools -a out.wav -y D -n grbkyvx
-
-## Todo
-
-* Mac support (to auto-find Jammit library -- but you can still use `-j` above)

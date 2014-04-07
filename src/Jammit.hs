@@ -211,19 +211,23 @@ loadTracks :: FilePath -> IO (Maybe [Track])
 loadTracks dir = PL.listFromPropertyList <$>
   PL.readXmlPropertyListFromFile (dir </> "tracks.plist")
 
--- | Tries to find the top-level Jammit library directory. Currently only works
--- for Windows. TODO: Add MAC OS X support.
+-- | Tries to find the top-level Jammit library directory on Windows or
+-- Mac OS X.
 findJammitDir :: IO (Maybe FilePath)
 findJammitDir = case Info.os of
   "mingw32" -> do
-    v <- lookupEnv "LocalAppData"
-    local <- case v of
-      Just l  -> return l
-      Nothing -> (\h -> h </> "AppData" </> "Local") <$> Dir.getHomeDirectory
-    let jmt = local </> "Jammit"
-    b <- Dir.doesDirectoryExist jmt
-    return $ guard b >> Just jmt
-  _ -> return Nothing -- TODO: OS X
+    var <- lookupEnv "LocalAppData"
+    case var of
+      Just local -> jammitIn local
+      Nothing    -> return Nothing
+  "darwin" -> do
+    home <- Dir.getHomeDirectory
+    jammitIn $ home </> "Library" </> "Application Support"
+  _ -> return Nothing
+  where jammitIn dir = do
+          let jmt = dir </> "Jammit"
+          b <- Dir.doesDirectoryExist jmt
+          return $ guard b >> Just jmt
 
 -- | Gets the contents of a directory without the @.@ and @..@ special paths,
 -- and adds the directory to the front of all the names to make absolute paths.
