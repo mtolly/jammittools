@@ -17,6 +17,7 @@ module Jammit
 
 import Control.Applicative ((<$>), (<*>), liftA2)
 import Control.Arrow ((***))
+import Control.Exception (evaluate)
 import Control.Monad (filterM, guard)
 import Data.Char (toLower, toUpper)
 import Data.Maybe (catMaybes)
@@ -180,7 +181,7 @@ plSkills (Right sl) = PL.plDict $
 
 loadInfo :: FilePath -> IO (Maybe Info)
 loadInfo dir =
-  PL.fromPropertyList <$> PL.readXmlPropertyListFromFile (dir </> "info.plist")
+  PL.fromPropertyList <$> readXmlPropertyListFromFile' (dir </> "info.plist")
 
 data Track = Track
   { trackClass          :: String
@@ -209,7 +210,14 @@ instance PL.PropertyListItem Track where
 
 loadTracks :: FilePath -> IO (Maybe [Track])
 loadTracks dir = PL.listFromPropertyList <$>
-  PL.readXmlPropertyListFromFile (dir </> "tracks.plist")
+  readXmlPropertyListFromFile' (dir </> "tracks.plist")
+
+-- | Reads strictly so as not to exhaust our allowed open files.
+readXmlPropertyListFromFile' :: FilePath -> IO PL.PropertyList
+readXmlPropertyListFromFile' f = do
+  str <- readFile f
+  _ <- evaluate $ length str
+  either fail return $ PL.readXmlPropertyList str
 
 -- | Tries to find the top-level Jammit library directory on Windows or
 -- Mac OS X.
