@@ -3,7 +3,6 @@ module Main (main) where
 import Control.Applicative ((<$>), liftA2, (<|>))
 import Control.Monad (forM, (>=>), forM_)
 import Data.Char (toLower)
-import Data.Either (rights)
 import Data.List (isInfixOf, transpose, sort, nub, partition, isPrefixOf)
 import Data.Maybe (mapMaybe, catMaybes, fromMaybe, listToMaybe)
 import Data.Version (showVersion)
@@ -37,8 +36,7 @@ data Function
   | ExportSheet FilePath
   | ExportAudio FilePath
   | ExportAll   FilePath
-  | TryAudio    FilePath
-  | TryBacking  FilePath
+  | CheckPresence
   deriving (Eq, Ord, Show, Read)
 
 defaultArgs :: Args
@@ -137,12 +135,9 @@ argOpts =
   , Opt.Option ['x'] ["export"]
     (Opt.ReqArg (\s a -> a { function = ExportAll s }) "dir")
     "function: export all to dir"
-  , Opt.Option ['u'] ["tryaudio"]
-    (Opt.ReqArg (\s a -> a { function = TryAudio s }) "file")
-    "function: see below"
-  , Opt.Option ['b'] ["trybacking"]
-    (Opt.ReqArg (\s a -> a { function = TryBacking s }) "file")
-    "function: see below"
+  , Opt.Option ['c'] ["check"]
+    (Opt.NoArg $ \a -> a { function = CheckPresence })
+    "function: check presence of audio parts"
   ]
 
 loadLibrary :: FilePath -> IO Library
@@ -221,14 +216,6 @@ main = do
       putStrLn $ "jammittools v" ++ showVersion Paths.version
       let header = "Usage: " ++ prog ++ " [options]"
       putStr $ Opt.usageInfo header argOpts
-      mapM_ putStrLn
-        [ "-y <parts> -u <file> exports an audio file where parts not in the"
-        , "library are replaced with silence."
-        , "-n <instruments> -b <file> exports an audio file that tries to"
-        , "remove the given instruments if those backing tracks are present."
-        , "Combining the two functions, each part will show up in *either* the"
-        , "tryaudio or trybacking files depending on whether you have it."
-        ]
     ShowDatabase -> do
       matches <- searchResults args
       putStr $ showLibrary matches
@@ -239,37 +226,13 @@ main = do
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
         (Right yaifcs, Right naifcs) -> runAudio yaifcs naifcs fout
-    TryAudio fout -> do
+    CheckPresence -> do
       matches <- getAudioParts <$> searchResults args
-      let selected = rights $ map (`getOneResult` matches) $
-            mapMaybe charToAudioPart $ selectParts args
-      runAudio selected [] fout
-    TryBacking fout -> do
-      matches <- getAudioParts <$> searchResults args
-      let rejected = map audioPartToInstrument $ mapMaybe charToAudioPart $
-            rejectParts args
-          backingOrder = [Drums, Guitar, Keyboard, Bass, Vocal]
-          possibleBacks =
-            [ (i, f)
-            | i <- backingOrder
-            , i `elem` rejected
-            , (Without i', f) <- matches
-            , i == i'
-            ]
-      case possibleBacks of
-        [] -> case [ (i, f) | (Without i, f) <- matches ] of
-          []         -> error "No Jammit backing track found."
-          (i, f) : _ -> let
-            addFiles = [ f' | (Only p, f') <- matches, partToInstrument p == i ]
-            in runAudio (f : addFiles) [] fout
-        (i, f) : _ -> let
-          remInsts = filter (/= i) rejected
-          remFiles =
-            [ f'
-            | (Only p, f') <- matches
-            , partToInstrument p `elem` remInsts
-            ]
-          in runAudio [f] remFiles fout
+      let f = mapM (`getOneResult` matches) . mapMaybe charToAudioPart
+      case (f $ selectParts args, f $ rejectParts args) of
+        (Left  err   , _           ) -> error err
+        (_           , Left  err   ) -> error err
+        (Right _     , Right _     ) -> return ()
     ExportSheet fout -> do
       matches <- getSheetParts <$> searchResults args
       let f = mapM (`getOneResult` matches) . mapMaybe charToSheetPart
