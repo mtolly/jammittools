@@ -108,10 +108,10 @@ argOpts =
       (\s a -> a { filterLibrary = exactSearchBy artist s . filterLibrary a })
       "str")
     "search by song artist (exact)"
-  , Opt.Option ['y'] ["yesparts"]
+  , Opt.Option ['y'] ["yes-parts"]
     (Opt.ReqArg (\s a -> a { selectParts = s }) "parts")
     "parts to appear in sheet music or audio"
-  , Opt.Option ['n'] ["noparts"]
+  , Opt.Option ['n'] ["no-parts"]
     (Opt.ReqArg (\s a -> a { rejectParts = s }) "parts")
     "parts to subtract (add inverted) from audio"
   , Opt.Option ['l'] ["lines"]
