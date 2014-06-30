@@ -27,6 +27,7 @@ Build-Type:         Simple
 Cabal-Version:      >= 1.8
 Category:           Sound
 Bug-Reports:        https://github.com/mtolly/jammittools/issues
+Extra-Source-Files: README.md
 
 Executable jammittools
   Main-Is:          Main.hs
