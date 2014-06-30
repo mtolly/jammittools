@@ -31,6 +31,11 @@ Extra-Source-Files: README.md
 
 Executable jammittools
   Main-Is:          Main.hs
+  Other-Modules:    AIFC2WAV
+                    ImageMagick
+                    Jammit
+                    Sox
+                    TempFile
   Hs-Source-Dirs:   src
   Build-Depends:    base            >= 4.6.0.1 && < 5
                     , property-list >= 0.1.0.4 && < 0.2
