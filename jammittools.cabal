@@ -26,6 +26,7 @@ Maintainer:         miketolly@gmail.com
 Build-Type:         Simple
 Cabal-Version:      >= 1.8
 Category:           Sound
+Homepage:           https://github.com/mtolly/jammittools
 Bug-Reports:        https://github.com/mtolly/jammittools/issues
 Extra-Source-Files: README.md
 
