@@ -13,6 +13,9 @@ Description:        <http://www.jammit.com/ Jammit> is a service and associated
                     have the official app available. Please do not use this tool
                     to share content with others who have not purchased it!
                     .
+                    You must install ImageMagick and Sox for sheet music and
+                    audio export respectively, because they are used to do the
+                    actual conversion.
                     Please see the
                     <https://github.com/mtolly/jammittools/blob/master/README.md README>
                     for usage information.
