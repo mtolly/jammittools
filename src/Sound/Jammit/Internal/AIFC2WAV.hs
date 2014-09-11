@@ -1,5 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-module AIFC2WAV
+module Sound.Jammit.Internal.AIFC2WAV
 ( aifcToWav
 ) where
 
@@ -7,7 +7,7 @@ import Foreign.C (withCString, CInt(..), CChar(..))
 import Foreign.Marshal.Array (withArrayLen)
 import Foreign.Ptr (Ptr)
 
-import TempFile
+import Sound.Jammit.Internal.TempFile
 
 foreign import ccall unsafe "aifc2wav_main" aifc2wav_main
   :: CInt -> Ptr (Ptr CChar) -> IO CInt

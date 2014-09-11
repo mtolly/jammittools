@@ -1,4 +1,4 @@
-module Sox
+module Sound.Jammit.Internal.Sox
 ( Audio(..)
 , Time(..)
 , renderAudio
@@ -10,7 +10,7 @@ import Control.Monad (void, forM, guard)
 
 import System.Process (readProcess)
 
-import TempFile
+import Sound.Jammit.Internal.TempFile
 
 data Audio
   = Empty                 -- ^ An empty stereo file

@@ -1,4 +1,4 @@
-module Jammit
+module Sound.Jammit.Base
 ( Instrument(..)
 , Part(..)
 , AudioPart(..)

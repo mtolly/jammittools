@@ -1,6 +1,6 @@
 -- | A wrapper around IO that allows you to treat temporary files like
 -- garbage-collected values.
-module TempFile
+module Sound.Jammit.Internal.TempFile
 ( TempIO
 , runTempIO
 , newTempFile

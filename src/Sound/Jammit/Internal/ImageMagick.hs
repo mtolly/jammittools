@@ -1,4 +1,4 @@
-module ImageMagick
+module Sound.Jammit.Internal.ImageMagick
 ( connectVertical
 , splitVertical
 , joinPages
@@ -19,7 +19,7 @@ import System.FilePath ((</>))
 import System.IO.Temp (createTempDirectory)
 import System.Process (readProcess, readProcessWithExitCode)
 
-import TempFile
+import Sound.Jammit.Internal.TempFile
 
 -- | Find an ImageMagick binary, because the names are way too generic, and
 -- "convert" is both an ImageMagick program and a Windows built-in utility.

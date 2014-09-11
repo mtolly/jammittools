@@ -1,4 +1,4 @@
-module Main (main) where
+module Sound.Jammit.Export (main) where
 
 import Control.Applicative ((<$>), liftA2, (<|>))
 import Control.Monad (forM, (>=>), forM_)
@@ -14,12 +14,12 @@ import System.FilePath ((</>), splitFileName, takeFileName)
 import Text.PrettyPrint.Boxes
   (text, vcat, left, render, hsep, top, (/+/))
 
-import AIFC2WAV
-import ImageMagick
-import Jammit
+import Sound.Jammit.Internal.AIFC2WAV
+import Sound.Jammit.Internal.ImageMagick
+import Sound.Jammit.Base
 import qualified Paths_jammittools as Paths
-import Sox
-import TempFile
+import Sound.Jammit.Internal.Sox
+import Sound.Jammit.Internal.TempFile
 
 data Args = Args
   { filterLibrary :: Library -> Library
