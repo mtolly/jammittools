@@ -1,3 +1,6 @@
+{- |
+Functions for exporting Jammit audio (as WAV) and sheet music (as PDF).
+-}
 module Sound.Jammit.Export
 ( Library
 , fuzzySearchBy
@@ -26,13 +29,19 @@ import Sound.Jammit.Internal.TempFile
 
 type Library = [(FilePath, Info, [Track])]
 
+-- | Filter the library based on some string selector. The selector is
+-- applied case-insensitively, and the song's field only has to contain the
+-- search term rather than match it exactly.
 fuzzySearchBy :: (Info -> String) -> String -> Library -> Library
 fuzzySearchBy f str = let str' = map toLower str in
   filter $ \(_, info, _) -> str' `isInfixOf` map toLower (f info)
 
+-- | Filter the library based on some string selector. The selector must match
+-- exactly.
 exactSearchBy :: (Info -> String) -> String -> Library -> Library
 exactSearchBy f str = filter $ \(_, info, _) -> f info == str
 
+-- | Given the top-level Jammit library directory, finds all song packages.
 loadLibrary :: FilePath -> IO Library
 loadLibrary jmt = do
   dirs <- songSubdirs jmt
@@ -65,9 +74,11 @@ getSheetParts lib = do
         else [sheet]
     _ -> []
 
--- | Takes a list of positive AIFCs, a list of negative AIFCs, and a WAV file
--- to produce.
-runAudio :: [FilePath] -> [FilePath] -> FilePath -> IO ()
+runAudio
+  :: [FilePath] -- ^ AIFCs to mix in normally
+  -> [FilePath] -- ^ AIFCs to mix in inverted
+  -> FilePath   -- ^ the resulting WAV file
+  -> IO ()
 runAudio pos neg fout = runTempIO fout $ do
   -- I've only found one audio file where the instruments are not aligned:
   -- the drums and drums backing track for Take the Time are 38 samples ahead
@@ -82,7 +93,11 @@ runAudio pos neg fout = runTempIO fout $ do
   negWavs <- map (\w -> (-1, w)) <$> mapM aifcToWav' neg
   renderAudio $ optimize $ Mix (posWavs ++ negWavs)
 
-runSheet :: [(FilePath, Integer)] -> Int -> FilePath -> IO ()
+runSheet
+  :: [(FilePath, Integer)] -- ^ pairs of @(png file prefix, line height in px)@
+  -> Int                   -- ^ how many sheet music systems per page
+  -> FilePath              -- ^ the resulting PDF
+  -> IO ()
 runSheet trks lns fout = runTempIO fout $ do
   trkLns <- forM trks $ \(fp, ht) -> do
     let (dir, file) = splitFileName fp

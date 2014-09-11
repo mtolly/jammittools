@@ -1,3 +1,6 @@
+{- |
+Basic types and functions for dealing with Jammit song packages.
+-}
 module Sound.Jammit.Base
 ( Instrument(..)
 , Part(..)
