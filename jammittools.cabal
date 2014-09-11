@@ -1,24 +1,17 @@
 Name:               jammittools
-Version:            0.2.0.1
+Version:            0.3
 Synopsis:           Export sheet music and audio from Windows/Mac app Jammit
-Description:        <http://www.jammit.com/ Jammit> is a service and associated
-                    app for Windows\/Mac\/iOS that sells isolated instrument
-                    audio tracks from popular music, along with full
-                    transcriptions. This is a tool that allows you to export the
-                    sheet music (in PDF format) and audio (in WAV format) to
-                    tracks that you have purchased.
-                    .
-                    Any sheet music or audio you export is solely for your own
-                    use, e.g. for use on Linux and Android devices that do not
-                    have the official app available. Please do not use this tool
-                    to share content with others who have not purchased it!
-                    .
-                    You must install ImageMagick and Sox for sheet music and
-                    audio export respectively, because they are used to do the
-                    actual conversion.
-                    Please see the
-                    <https://github.com/mtolly/jammittools/blob/master/README.md README>
-                    for usage information.
+Description:
+
+  <http://www.jammit.com/ Jammit> is a service and associated app for Windows\/Mac\/iOS that sells isolated instrument audio tracks from popular music, along with full transcriptions.
+  This is a library and executable that allow you to export the sheet music (in PDF format) and audio (in WAV format) to tracks that you have purchased.
+  .
+  Any sheet music or audio you export is solely for your own use, e.g. for use on Linux and Android devices that do not have the official app available.
+  Please do not use this tool to share content with others who have not purchased it!
+  .
+  You must install ImageMagick and Sox for sheet music and audio export respectively, because they are used to do the actual conversion.
+  Please see the <https://github.com/mtolly/jammittools/blob/master/README.md README> for usage information.
+
 License:            GPL
 License-File:       LICENSE
 Author:             Michael Tolly
@@ -61,7 +54,7 @@ executable jammittools
     , directory     >= 1.2.0.1 && < 1.3
     , filepath      >= 1.3.0.1 && < 1.4
     , boxes         >= 0.1.3   && < 1.2
-    , jammittools   == 0.2.0.1
+    , jammittools   == 0.3
   ghc-options:      -Wall
 
 source-repository head

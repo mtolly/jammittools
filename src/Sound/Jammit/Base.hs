@@ -40,26 +40,26 @@ data Instrument = Guitar | Bass | Drums | Keyboard | Vocal
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
 data Part
-  = PartGuitar1
+  = PartGuitar1 -- ^ Used for both Guitar and Guitar 1
   | PartGuitar2
   | PartBass
   | PartDrums
-  | PartKeys1
+  | PartKeys1 -- ^ Used for both Keys and Keys 1
   | PartKeys2
-  | PartPiano
-  | PartSynth
+  | PartPiano -- ^ Rarely used. Seen in \"The Answer Lies Within\" and \"Wait for Sleep\"
+  | PartSynth -- ^ Rarely used. Seen in \"Wait for Sleep\"
   | PartVocal
   | PartBVocals
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
 data AudioPart
-  = Only Part
-  | Without Instrument
+  = Only Part -- ^ An audio file for a single notated part.
+  | Without Instrument -- ^ The backing track for an instrument package.
   deriving (Eq, Ord, Show, Read)
 
 data SheetPart
-  = Notation Part
-  | Tab Part
+  = Notation Part -- ^ For any instrument, the notation sheet music.
+  | Tab Part -- ^ For guitar and bass, the tablature sheet music.
   deriving (Eq, Ord, Show, Read)
 
 titleToPart :: String -> Maybe Part
