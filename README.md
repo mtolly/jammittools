@@ -67,11 +67,13 @@ Instrument parts are given by this somewhat terse syntax:
     g - Guitar (1)
     r - Guitar 2
     b - Bass
-    d - Drums
+    d - Drums (1)
+    m - Drums 2
     k - Keyboard (1)
     y - Keyboard 2
     p - Piano
     s - Synth
+    o - Organ
     v - Vocals (Lead)
     x - Vocals (Backing)
     GRB - in sheet music, tab instead of notation

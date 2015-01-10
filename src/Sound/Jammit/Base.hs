@@ -43,11 +43,13 @@ data Part
   = PartGuitar1 -- ^ Used for both Guitar and Guitar 1
   | PartGuitar2
   | PartBass
-  | PartDrums
+  | PartDrums1
+  | PartDrums2 -- ^ Rarely used. Seen in \"Space Truckin'\"
   | PartKeys1 -- ^ Used for both Keys and Keys 1
   | PartKeys2
   | PartPiano -- ^ Rarely used. Seen in \"The Answer Lies Within\" and \"Wait for Sleep\"
   | PartSynth -- ^ Rarely used. Seen in \"Wait for Sleep\"
+  | PartOrgan -- ^ Rarely used. Seen in \"Smoke on the Water\"
   | PartVocal
   | PartBVocals
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
@@ -68,12 +70,15 @@ titleToPart s = case s of
   "Guitar 1" -> Just PartGuitar1
   "Guitar 2" -> Just PartGuitar2
   "Bass"     -> Just PartBass
-  "Drums"    -> Just PartDrums
+  "Drums"    -> Just PartDrums1
+  "Drums 1"  -> Just PartDrums1
+  "Drums 2"  -> Just PartDrums2
   "Keys"     -> Just PartKeys1
   "Keys 1"   -> Just PartKeys1
   "Keys 2"   -> Just PartKeys2
   "Piano"    -> Just PartPiano
   "Synth"    -> Just PartSynth
+  "Organ"    -> Just PartOrgan
   "Vocal"    -> Just PartVocal
   "B Vocals" -> Just PartBVocals
   _          -> Nothing
@@ -87,11 +92,13 @@ partToInstrument p = case p of
   PartGuitar1 -> Guitar
   PartGuitar2 -> Guitar
   PartBass    -> Bass
-  PartDrums   -> Drums
+  PartDrums1  -> Drums
+  PartDrums2  -> Drums
   PartKeys1   -> Keyboard
   PartKeys2   -> Keyboard
   PartPiano   -> Keyboard
   PartSynth   -> Keyboard
+  PartOrgan   -> Keyboard
   PartVocal   -> Vocal
   PartBVocals -> Vocal
 
