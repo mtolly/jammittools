@@ -43,7 +43,7 @@ data Part
   = PartGuitar1 -- ^ Used for both Guitar and Guitar 1
   | PartGuitar2
   | PartBass
-  | PartDrums1
+  | PartDrums1 -- ^ Used for both Drums and Drums 1
   | PartDrums2 -- ^ Rarely used. Seen in \"Space Truckin'\"
   | PartKeys1 -- ^ Used for both Keys and Keys 1
   | PartKeys2

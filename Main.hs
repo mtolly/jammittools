@@ -1,13 +1,14 @@
 module Main (main) where
 
 import Control.Applicative ((<$>), (<|>))
-import Control.Monad ((>=>), forM_)
+import Control.Monad ((>=>), forM_, unless)
 import Data.Char (toLower)
 import Data.List (sort, nub, partition)
 import Data.Maybe (mapMaybe, fromMaybe, listToMaybe)
 import Data.Version (showVersion)
 import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
+import System.Exit (exitFailure)
 
 import System.FilePath ((</>))
 import Text.PrettyPrint.Boxes
@@ -17,16 +18,24 @@ import Sound.Jammit.Base
 import Sound.Jammit.Export
 import qualified Paths_jammittools as Paths
 
+printUsage :: IO ()
+printUsage = do
+  prog <- Env.getProgName
+  putStrLn $ "jammittools v" ++ showVersion Paths.version
+  let header = "Usage: " ++ prog ++ " [options]"
+  putStr $ Opt.usageInfo header argOpts
+
 main :: IO ()
 main = do
-  (fs, _, _) <- Opt.getOpt Opt.Permute argOpts <$> Env.getArgs
-  let args = foldr ($) defaultArgs fs
+  (opts, nonopts, errs) <- Opt.getOpt Opt.Permute argOpts <$> Env.getArgs
+  unless (null $ nonopts ++ errs) $ do
+    forM_ nonopts $ \nonopt -> putStrLn $ "unrecognized argument `" ++ nonopt ++ "'"
+    forM_ errs putStr
+    printUsage
+    exitFailure
+  let args = foldr ($) defaultArgs opts
   case function args of
-    PrintUsage -> do
-      prog <- Env.getProgName
-      putStrLn $ "jammittools v" ++ showVersion Paths.version
-      let header = "Usage: " ++ prog ++ " [options]"
-      putStr $ Opt.usageInfo header argOpts
+    PrintUsage -> printUsage
     ShowDatabase -> do
       matches <- searchResults args
       putStr $ showLibrary matches
@@ -125,8 +134,9 @@ searchResults args = do
     Just j  -> return j
     Nothing -> Env.lookupEnv "JAMMIT" >>= \mv -> case mv of
       Just j -> return j
-      Nothing ->
-        fromMaybe (error "Couldn't find Jammit directory.") <$> findJammitDir
+      Nothing -> let
+        err = "Couldn't find Jammit directory. Try -j or the env var JAMMIT"
+        in fromMaybe (error err) <$> findJammitDir
   db <- loadLibrary jmt
   return $ filterLibrary args db
 
@@ -164,7 +174,7 @@ argOpts =
   , Opt.Option ['j'] ["jammit"]
     (Opt.ReqArg (\s a -> a { jammitDir = Just s }) "directory")
     "location of Jammit library"
-  , Opt.Option ['?'] ["help"]
+  , Opt.Option ['?', 'h'] ["help"]
     (Opt.NoArg $ \a -> a { function = PrintUsage })
     "function: print usage info"
   , Opt.Option ['d'] ["database"]
