@@ -240,12 +240,12 @@ static unsigned char out2[128]; /* for stereo, another buffer (we must
 #define SOWT        2
 #define SDX2        3
 
-int aifc2wav_main(int n, char **v)
+int aifc2wav_main(int n, wchar_t **v)
 {
   long size;
   int flags = 0;
-  char *input_file;
-  char *output_file;
+  wchar_t *input_file;
+  wchar_t *output_file;
   FILE *fin, *fout;
   int nb_chans;                /* number of channels, must be 1 or 2 */
   int nb_frames;        /* number of sound chunks */
@@ -271,15 +271,15 @@ int aifc2wav_main(int n, char **v)
   input_file = v[1];
   output_file = v[2];
 
-  fin = fopen(input_file, "rb");
+  fin = _wfopen(input_file, L"rb");
   if (!fin) {
-    perror(input_file);
+    _wperror(input_file);
     return 1;
   }
 
-  fout = fopen(output_file, "wb");
+  fout = _wfopen(output_file, L"wb");
   if (!fout) {
-    perror(output_file);
+    _wperror(output_file);
     fclose(fin);
     return 1;
   }
@@ -650,7 +650,7 @@ all_parsed:
     nb_frames--;
 
     if (fread(in, 1, 2, fin) != 2) {
-      perror(input_file);
+      _wperror(input_file);
       goto bad_file;
     }
     if (fwrite(in, 1, 2, fout) != 2)
@@ -660,7 +660,7 @@ all_parsed:
       continue;
 
     if (fread(in, 1, 2, fin) != 2) {
-      perror(input_file);
+      _wperror(input_file);
       goto bad_file;
     }
     if (fwrite(in, 1, 2, fout) != 2)
@@ -689,7 +689,7 @@ not_sowt:
 
     for (i=0; i<nb_chans; i++) {
       if (fread(&src, 1, 1, fin) != 1) {
-        perror(input_file);
+        _wperror(input_file);
         free(last);
         goto bad_file;
       }
@@ -720,7 +720,7 @@ not_sdx2:
   /* ima4 */
   while (nb_frames) {
     if (fread(in, 1, 34, fin) != 34) {
-      perror(input_file);
+      _wperror(input_file);
       goto bad_file;
     }
 
@@ -731,7 +731,7 @@ not_sdx2:
       int i;
 
       if (fread(in, 1, 34, fin) != 34) {
-        perror(input_file);
+        _wperror(input_file);
         goto bad_file;
       }
 
@@ -776,10 +776,10 @@ bad_file:
 both_error:
   fclose(fin);
   fclose(fout);
-  remove(output_file);
+  _wremove(output_file);
   return 1;
 
 out_error:
-  perror(output_file);
+  _wperror(output_file);
   goto both_error;
 }
