@@ -44,6 +44,9 @@ library
     , transformers  >= 0.3.0.0 && < 0.5
   ghc-options:      -Wall
   c-sources:        cbits/aifc2wav-5.1.c
+  if os(windows)
+    ghc-options:    -DWIDE_CBITS
+    cc-options:     -DWIDE_CBITS
 
 executable jammittools
   main-is:          Main.hs

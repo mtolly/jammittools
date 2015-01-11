@@ -240,12 +240,20 @@ static unsigned char out2[128]; /* for stereo, another buffer (we must
 #define SOWT        2
 #define SDX2        3
 
-int aifc2wav_main(int n, wchar_t **v)
+#ifdef WIDE_CBITS
+  #define my_char wchar_t
+  #define my_perror _wperror
+  #define my_remove _wremove
+#else
+  #define my_char char
+  #define my_perror perror
+  #define my_remove remove
+#endif
+
+int aifc2wav_main(my_char *input_file, my_char *output_file)
 {
   long size;
   int flags = 0;
-  wchar_t *input_file;
-  wchar_t *output_file;
   FILE *fin, *fout;
   int nb_chans;                /* number of channels, must be 1 or 2 */
   int nb_frames;        /* number of sound chunks */
@@ -263,23 +271,23 @@ int aifc2wav_main(int n, wchar_t **v)
   short predictor_left = 0;
   short predictor_right = 0;
 
-  if (n != 3) {
-    fprintf(stderr, "usage: %s <input AIFC file> <output WAV file>\n", v[0]);
-    return 1;
-  }
-
-  input_file = v[1];
-  output_file = v[2];
-
+#ifdef WIDE_CBITS
   fin = _wfopen(input_file, L"rb");
+#else
+  fin = fopen(input_file, "rb");
+#endif
   if (!fin) {
-    _wperror(input_file);
+    my_perror(input_file);
     return 1;
   }
 
+#ifdef WIDE_CBITS
   fout = _wfopen(output_file, L"wb");
+#else
+  fout = fopen(output_file, "wb");
+#endif
   if (!fout) {
-    _wperror(output_file);
+    my_perror(output_file);
     fclose(fin);
     return 1;
   }
@@ -650,7 +658,7 @@ all_parsed:
     nb_frames--;
 
     if (fread(in, 1, 2, fin) != 2) {
-      _wperror(input_file);
+      my_perror(input_file);
       goto bad_file;
     }
     if (fwrite(in, 1, 2, fout) != 2)
@@ -660,7 +668,7 @@ all_parsed:
       continue;
 
     if (fread(in, 1, 2, fin) != 2) {
-      _wperror(input_file);
+      my_perror(input_file);
       goto bad_file;
     }
     if (fwrite(in, 1, 2, fout) != 2)
@@ -689,7 +697,7 @@ not_sowt:
 
     for (i=0; i<nb_chans; i++) {
       if (fread(&src, 1, 1, fin) != 1) {
-        _wperror(input_file);
+        my_perror(input_file);
         free(last);
         goto bad_file;
       }
@@ -720,7 +728,7 @@ not_sdx2:
   /* ima4 */
   while (nb_frames) {
     if (fread(in, 1, 34, fin) != 34) {
-      _wperror(input_file);
+      my_perror(input_file);
       goto bad_file;
     }
 
@@ -731,7 +739,7 @@ not_sdx2:
       int i;
 
       if (fread(in, 1, 34, fin) != 34) {
-        _wperror(input_file);
+        my_perror(input_file);
         goto bad_file;
       }
 
@@ -776,10 +784,10 @@ bad_file:
 both_error:
   fclose(fin);
   fclose(fout);
-  _wremove(output_file);
+  my_remove(output_file);
   return 1;
 
 out_error:
-  _wperror(output_file);
+  my_perror(output_file);
   goto both_error;
 }
