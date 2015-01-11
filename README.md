@@ -11,8 +11,8 @@ it is for your use only!
 This is basically a fancy shell script but written in Haskell.
 [ImageMagick](http://www.imagemagick.org) and [Sox](http://sox.sourceforge.net/)
 are used to do the actual conversion work, so install those and put them in your path.
-If you're on Windows, ImageMagick `convert` infamously conflicts with a system tool of the same name,
-but `jammittools` tries looking in your Program Files so you shouldn't have to do anything.
+If you're on Windows, `jammittools` will look in your Program Files for both of them
+so you shouldn't need to do anything after running their installers.
 
 ## Usage
 
