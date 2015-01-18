@@ -6,16 +6,10 @@ module Sound.Jammit.Internal.Sox
 ) where
 
 import Control.Arrow (first)
-import Control.Applicative ((<$>))
-import Control.Monad (forM, guard, void)
-import Data.List (isPrefixOf)
-import Data.Maybe (listToMaybe)
-import System.Environment (lookupEnv)
-import qualified System.Info as Info
+import Control.Monad (forM_, guard)
+import Data.List (transpose)
 
-import System.Directory (getDirectoryContents, findExecutable)
-import System.FilePath ((</>))
-import System.Process (readProcess)
+import Data.WAVE
 
 import Sound.Jammit.Internal.TempFile
 
@@ -32,45 +26,66 @@ data Time
   | Samples Integer
   deriving (Eq, Ord, Show, Read)
 
-showTime :: Time -> String
-showTime (Seconds d) = show d
-showTime (Samples i) = show i ++ "s"
+getHeader :: [WAVE] -> Maybe WAVEHeader
+getHeader wavs = let
+  eraseLength header = header { waveFrames = Nothing }
+  in case map (eraseLength . waveHeader) wavs of
+    []     -> Nothing
+    h : hs -> do
+      forM_ [waveNumChannels, waveFrameRate, waveBitsPerSample]
+        $ \f -> guard $ all (== f h) $ map f hs
+      return h
 
 renderAudio :: Audio -> TempIO FilePath
-renderAudio aud = case aud of
-  Empty -> do
-    fout <- newTempFile "render.wav"
-    liftIO $ runSox $ ["-n", fout] ++ words "trim 0 0 channels 2"
-    return fout
-  File f -> return f
+renderAudio aud = do
+  wav <- liftIO $ renderWAVE aud
+  fout <- newTempFile "render.wav"
+  liftIO $ putWAVEFile fout wav
+  return fout
+
+renderWAVE :: Audio -> IO WAVE
+renderWAVE aud = case aud of
+  Empty -> return $ WAVE (WAVEHeader 2 44100 16 $ Just 0) []
+  File f -> getWAVEFile f
   Pad t x -> do
-    fin <- renderAudio x
-    fout <- newTempFile "render.wav"
-    liftIO $ runSox [fin, fout, "pad", showTime t]
-    return fout
-  Mix xs -> case xs of
-    [] -> renderAudio Empty
-    [(d, x)] -> do
-      fin <- renderAudio x
-      fout <- newTempFile "render.wav"
-      liftIO $ runSox ["-v", show d, fin, fout]
-      return fout
-    _ -> do
-      dfins <- forM xs $ \(d, x) -> do
-        fin <- renderAudio x
-        return (d, fin)
-      let argsin = concatMap
-            (\(d, fin) -> ["-v", show d, fin]) dfins
-      fout <- newTempFile "render.wav"
-      liftIO $ runSox $ ["--combine", "mix"] ++ argsin ++ [fout]
-      return fout
-  Concat xs -> case xs of
-    [] -> renderAudio Empty
-    _ -> do
-      fins <- mapM renderAudio xs
-      fout <- newTempFile "render.wav"
-      liftIO $ runSox $ fins ++ [fout]
-      return fout
+    wav <- renderWAVE x
+    let oldHeader = waveHeader wav
+    let samples = case t of
+          Seconds s -> floor $ s * fromIntegral (waveFrameRate oldHeader)
+          Samples s -> fromIntegral s
+        newHeader = oldHeader
+          { waveFrames = fmap (+ samples) $ waveFrames oldHeader }
+        emptyFrame = replicate (waveNumChannels oldHeader) 0
+        newSamples = replicate samples emptyFrame ++ waveSamples wav
+    return $ WAVE newHeader newSamples
+  Concat [] -> renderWAVE Empty
+  Concat xs -> do
+    wavs <- mapM renderWAVE xs
+    case getHeader wavs of
+      Nothing -> error "renderWAVE: concat'd audio files with different formats"
+      Just h  -> let
+        newHeader = h { waveFrames = fmap sum $ mapM (waveFrames . waveHeader) wavs }
+        newSamples = concat $ map waveSamples wavs
+        in return $ WAVE newHeader newSamples
+  Mix [] -> renderWAVE Empty
+  Mix xs -> do
+    wavs <- mapM renderWAVE $ map snd xs
+    case getHeader wavs of
+      Nothing -> error "renderWAVE: mixed audio files with different formats"
+      Just h  -> let
+        newHeader = h { waveFrames = fmap maximum $ mapM (waveFrames . waveHeader) wavs }
+        newSamples = let
+          adjusted :: [[[Double]]]
+          adjusted = do
+            (vol, samps) <- zip (map fst xs) (map waveSamples wavs)
+            let adjust i32 = sampleToDouble i32 * vol
+            return $ map (map adjust) samps
+          mixed :: [[Double]]
+          mixed = do
+            frameOfFiles <- transpose adjusted
+            return $ foldr (zipWith (+)) (repeat 0) frameOfFiles
+          in map (map doubleToSample) mixed
+        in return $ WAVE newHeader newSamples
 
 optimize :: Audio -> Audio
 optimize aud = case aud of
@@ -98,39 +113,3 @@ optimize aud = case aud of
       [x] -> x
       _   -> Concat xs'
   _ -> aud
-
-runSox :: [String] -> IO ()
-runSox args = do
-  sox <- findSox
-  case sox of
-    Just prog -> void $ readProcess prog args ""
-    Nothing   -> error "runSox: couldn't find sox executable"
-
--- | Find the SoX binary on Windows in case it's not in the PATH.
-findSox :: IO (Maybe String)
-findSox = do
-  inPath <- findExecutable "sox"
-  case inPath of
-    Just prog -> return $ Just prog
-    Nothing -> case Info.os of
-      "mingw32" -> firstJustM $
-        -- env variables for different configs of (ghc arch)/(sox arch)
-        -- ProgramFiles: 32/32 or 64/64
-        -- ProgramFiles(x86): 64/32
-        -- ProgramW6432: 32/64
-        flip map ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"] $ \env ->
-          lookupEnv env >>= \var -> case var of
-            Nothing -> return Nothing
-            Just pf
-              ->  fmap (\im -> pf </> im </> "sox.exe")
-              .   listToMaybe
-              .   filter ("sox-" `isPrefixOf`)
-              <$> getDirectoryContents pf
-      _ -> return Nothing
-
--- | Only runs actions until the first that gives 'Just'.
-firstJustM :: (Monad m) => [m (Maybe a)] -> m (Maybe a)
-firstJustM [] = return Nothing
-firstJustM (mx : xs) = mx >>= \x -> case x of
-  Nothing -> firstJustM xs
-  Just y  -> return $ Just y
