@@ -15,7 +15,7 @@ module Sound.Jammit.Export
 import Control.Applicative ((<$>), liftA2)
 import Control.Monad (forM)
 import Data.Char (toLower)
-import Data.List (isInfixOf, transpose, sort, isPrefixOf)
+import Data.List (isInfixOf, sort, isPrefixOf)
 import Data.Maybe (catMaybes)
 
 import System.Directory (getDirectoryContents)
@@ -102,18 +102,8 @@ runSheet trks lns fout = runTempIO fout $ do
   trkLns <- liftIO $ forM trks $ \(fp, ht) -> do
     let (dir, file) = splitFileName fp
     ls <- getDirectoryContents dir
-    pngs <- mapM loadPNG $ map (dir </>) $ sort $ filter (file `isPrefixOf`) ls
-    return $ vertSplit (fromIntegral ht) $ vertConcat pngs
-  let pages = map (vertConcat . concat) $ chunksOf lns $ transpose trkLns
-  jpegs <- forM pages $ \page -> do
-    jpeg <- newTempFile "page.jpg"
-    liftIO $ saveJPEG jpeg page
-    return jpeg
+    return (map (dir </>) $ sort $ filter (file `isPrefixOf`) ls, ht)
+  jpegs <- partsToPages trkLns lns
   pdf <- newTempFile "pages.pdf"
   liftIO $ jpegsToPDF jpegs pdf
   return pdf
-
-chunksOf :: Int -> [a] -> [[a]]
-chunksOf _ [] = []
-chunksOf n xs = case splitAt n xs of
-  (ys, zs) -> ys : chunksOf n zs

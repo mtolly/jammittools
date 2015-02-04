@@ -45,6 +45,7 @@ library
     , JuicyPixels
     , HPDF
     , bytestring
+    , conduit
   ghc-options:      -Wall -O2
   c-sources:        cbits/aifc2wav-5.1.c
   if os(windows)

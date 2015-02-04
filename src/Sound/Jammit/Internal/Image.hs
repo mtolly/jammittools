@@ -1,14 +1,20 @@
+{-# LANGUAGE LambdaCase #-}
 module Sound.Jammit.Internal.Image
-( loadPNG, saveJPEG
-, vertConcat, vertSplit
+( partsToPages
 , jpegsToPDF
 ) where
 
 import qualified Codec.Picture as P
 import Codec.Picture.Types (convertImage, dropTransparency)
-import Control.Monad
+import Control.Monad (forM_, replicateM)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Trans.Class (lift)
 import qualified Graphics.PDF as PDF
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Conduit as C
+import Data.Maybe (catMaybes)
+
+import Sound.Jammit.Internal.TempFile
 
 loadPNG :: FilePath -> IO (P.Image P.PixelRGBA8)
 loadPNG fp = do
@@ -16,6 +22,45 @@ loadPNG fp = do
   case dyn of
     P.ImageRGBA8 i -> return i
     _              -> error "loadPNG: pixels aren't RGBA8"
+
+pngChunks :: (MonadIO m) =>
+  Int -> [FilePath] -> C.Source m (P.Image P.PixelRGBA8)
+pngChunks h fps = let
+  raw :: (MonadIO m) => C.Source m (P.Image P.PixelRGBA8)
+  raw = mapM_ (\fp -> liftIO (loadPNG fp) >>= C.yield) fps
+  chunk :: (Monad m) =>
+    C.Conduit (P.Image P.PixelRGBA8) m (P.Image P.PixelRGBA8)
+  chunk = C.await >>= \case
+    Nothing   -> return ()
+    Just page -> case span (\c -> P.imageHeight c == h) $ vertSplit h page of
+      (full, []  ) -> mapM_ C.yield full >> chunk
+      (full, part) -> mapM_ C.yield full >> C.await >>= \case
+        Nothing    -> mapM_ C.yield part
+        Just page' -> C.leftover (vertConcat $ part ++ [page']) >> chunk
+  in raw C.=$= chunk
+
+chunksToPages :: (Monad m) =>
+  Int -> C.Conduit [P.Image P.PixelRGBA8] m (P.Image P.PixelRGBA8)
+chunksToPages n = fmap catMaybes (replicateM n C.await) >>= \case
+  [] -> return ()
+  systems -> C.yield (vertConcat $ concat systems) >> chunksToPages n
+
+sinkJPEG :: C.Sink (P.Image P.PixelRGBA8) TempIO [FilePath]
+sinkJPEG = go [] where
+  go jpegs = C.await >>= \case
+    Nothing -> return jpegs
+    Just img -> do
+      jpeg <- lift $ newTempFile "page.jpg"
+      liftIO $ saveJPEG jpeg img
+      go $ jpegs ++ [jpeg]
+
+partsToPages
+  :: [([FilePath], Integer)] -- ^ [(images, system height)]
+  -> Int -- ^ systems per page
+  -> TempIO [FilePath]
+partsToPages parts n = let
+  sources = map (\(imgs, h) -> pngChunks (fromIntegral h) imgs) parts
+  in C.sequenceSources sources C.$$ chunksToPages n C.=$= sinkJPEG
 
 saveJPEG :: FilePath -> P.Image P.PixelRGBA8 -> IO ()
 saveJPEG fp img = BL.writeFile fp $ P.encodeJpegAtQuality 100 $
