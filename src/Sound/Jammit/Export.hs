@@ -22,7 +22,7 @@ import System.Directory (getDirectoryContents)
 import System.FilePath ((</>), splitFileName, takeFileName)
 
 import Sound.Jammit.Internal.AIFC2WAV
-import Sound.Jammit.Internal.ImageMagick
+import Sound.Jammit.Internal.Image
 import Sound.Jammit.Base
 import Sound.Jammit.Internal.Sox
 import Sound.Jammit.Internal.TempFile
@@ -99,15 +99,19 @@ runSheet
   -> FilePath              -- ^ the resulting PDF
   -> IO ()
 runSheet trks lns fout = runTempIO fout $ do
-  trkLns <- forM trks $ \(fp, ht) -> do
+  trkLns <- liftIO $ forM trks $ \(fp, ht) -> do
     let (dir, file) = splitFileName fp
-    ls <- liftIO $ getDirectoryContents dir
-    cnct <- connectVertical $
-      map (dir </>) $ sort $ filter (file `isPrefixOf`) ls
-    splitVertical ht cnct
-  pages <- forM (map concat $ chunksOf lns $ transpose trkLns) $ \pg ->
-    connectVertical pg
-  joinPages pages
+    ls <- getDirectoryContents dir
+    pngs <- mapM loadPNG $ map (dir </>) $ sort $ filter (file `isPrefixOf`) ls
+    return $ vertSplit (fromIntegral ht) $ vertConcat pngs
+  let pages = map (vertConcat . concat) $ chunksOf lns $ transpose trkLns
+  jpegs <- forM pages $ \page -> do
+    jpeg <- newTempFile "page.jpg"
+    liftIO $ saveJPEG jpeg page
+    return jpeg
+  pdf <- newTempFile "pages.pdf"
+  liftIO $ jpegsToPDF jpegs pdf
+  return pdf
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []

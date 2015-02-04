@@ -29,9 +29,9 @@ library
     Sound.Jammit.Export
   other-modules:
     Sound.Jammit.Internal.AIFC2WAV
-    Sound.Jammit.Internal.ImageMagick
     Sound.Jammit.Internal.Sox
     Sound.Jammit.Internal.TempFile
+    Sound.Jammit.Internal.Image
   hs-source-dirs:   src
   build-depends:
     base            >= 4.6.0.1 && < 5
@@ -42,7 +42,10 @@ library
     , process       >= 1.1.0.2 && < 1.3
     , temporary     >= 1.1.2.5 && < 1.3
     , transformers  >= 0.3.0.0 && < 0.5
-  ghc-options:      -Wall
+    , JuicyPixels
+    , HPDF
+    , bytestring
+  ghc-options:      -Wall -O2
   c-sources:        cbits/aifc2wav-5.1.c
   if os(windows)
     cpp-options:    -DWIDE_CBITS
@@ -58,7 +61,7 @@ executable jammittools
     , filepath      >= 1.3.0.1 && < 1.4
     , boxes         >= 0.1.3   && < 0.2
     , jammittools   == 0.3.2
-  ghc-options:      -Wall
+  ghc-options:      -Wall -O2
 
 source-repository head
   type:             git
