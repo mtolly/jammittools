@@ -9,8 +9,6 @@ Description:
   Any sheet music or audio you export is solely for your own use, e.g. for use on Linux and Android devices that do not have the official app available.
   Please do not use this tool to share content with others who have not purchased it!
   .
-  You must install ImageMagick for sheet music export, and have it in your PATH
-  (or on Windows, just installed in your Program Files).
   Please see the <https://github.com/mtolly/jammittools/blob/master/README.md README> for usage information.
 
 License:            GPL

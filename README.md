@@ -6,13 +6,6 @@ it is for your use only!
 
 [Jammit]: https://www.jammit.com/
 
-## Requirements
-
-The command-line [ImageMagick](http://www.imagemagick.org) program
-is used to do sheet music conversion, so it must be installed and in your `PATH`.
-If you're on Windows, `jammittools` will look for it in your Program Files,
-so you shouldn't need to do anything after running the ImageMagick installer.
-
 ## Usage
 
     jammittools -?
