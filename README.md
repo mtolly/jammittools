@@ -8,11 +8,10 @@ it is for your use only!
 
 ## Requirements
 
-This is basically a fancy shell script but written in Haskell.
-[ImageMagick](http://www.imagemagick.org) and [Sox](http://sox.sourceforge.net/)
-are used to do the actual conversion work, so install those and put them in your path.
-If you're on Windows, `jammittools` will look in your Program Files for both of them
-so you shouldn't need to do anything after running their installers.
+The command-line [ImageMagick](http://www.imagemagick.org) program
+is used to do sheet music conversion, so it must be installed and in your `PATH`.
+If you're on Windows, `jammittools` will look for it in your Program Files,
+so you shouldn't need to do anything after running the ImageMagick installer.
 
 ## Usage
 
