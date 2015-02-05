@@ -13,6 +13,7 @@ import qualified Graphics.PDF as PDF
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Conduit as C
 import Data.Maybe (catMaybes)
+import qualified Data.Vector.Storable as V
 
 import Sound.Jammit.Internal.TempFile
 
@@ -67,6 +68,16 @@ saveJPEG fp img = BL.writeFile fp $ P.encodeJpegAtQuality 100 $
   convertImage $ P.pixelMap dropTransparency img
 
 vertConcat :: [P.Image P.PixelRGBA8] -> P.Image P.PixelRGBA8
+vertConcat [] = P.Image 0 0 V.empty
+-- efficient version: all images have same width, just concat vectors
+vertConcat allimgs@(img : imgs)
+  | all (\i -> P.imageWidth i == P.imageWidth img) imgs
+  = P.Image
+    { P.imageWidth  = P.imageWidth img
+    , P.imageHeight = sum $ map P.imageHeight allimgs
+    , P.imageData   = V.concat $ map P.imageData allimgs
+    }
+-- this algorithm is probably not needed
 vertConcat imgs = P.generateImage f w h where
   w = foldr max 0 $ map P.imageWidth imgs
   h = sum $ map P.imageHeight imgs
