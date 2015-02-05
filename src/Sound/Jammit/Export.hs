@@ -26,6 +26,7 @@ import Sound.Jammit.Internal.Image
 import Sound.Jammit.Base
 import Sound.Jammit.Internal.Sox
 import Sound.Jammit.Internal.TempFile
+import Sound.Jammit.Internal.Audio
 
 type Library = [(FilePath, Info, [Track])]
 

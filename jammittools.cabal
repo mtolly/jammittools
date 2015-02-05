@@ -31,6 +31,7 @@ library
     Sound.Jammit.Internal.Sox
     Sound.Jammit.Internal.TempFile
     Sound.Jammit.Internal.Image
+    Sound.Jammit.Internal.Audio
   hs-source-dirs:   src
   build-depends:
     base            >= 4.6.0.1 && < 5
@@ -46,6 +47,7 @@ library
     , HPDF
     , bytestring
     , conduit
+    , vector
   ghc-options:      -Wall -O2
   c-sources:        cbits/aifc2wav-5.1.c
   if os(windows)
