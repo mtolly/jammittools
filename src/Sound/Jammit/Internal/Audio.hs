@@ -7,6 +7,7 @@ module Sound.Jammit.Internal.Audio
 ) where
 
 import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 import qualified Data.Vector as V
 import Data.Int
 import Data.Word
@@ -75,36 +76,34 @@ decodeChunk :: (Int16, B.ByteString) -> (Int16, V.Vector Int16)
 decodeChunk (initPredictor, chunk) = runST $ do
   predictor <- newSTRef initPredictor
   stepIndex <- newSTRef (fromIntegral (B.index chunk 1) .&. 127 :: Int16)
-  step <- readSTRef stepIndex >>= newSTRef . (stepTable V.!) . fromIntegral
-  v <- fmap (V.fromList . concat) $ forM [0..31] $ \i -> do
-    let d = B.index chunk $ i + 2
-        hnb = (fromIntegral d `shiftR` 4) .&. 15 :: Int32
-        lnb = fromIntegral d .&. 15 :: Int32
+  let step = fmap (\si -> stepTable V.! fromIntegral si) $ readSTRef stepIndex
+  v <- fmap (V.fromList . concat) $ forM (B.unpack $ B.drop 2 chunk) $ \d -> do
+    let hnb = fromIntegral $ d `shiftR` 4 :: Int32
+        lnb = fromIntegral $ d .&. 15     :: Int32
     forM [lnb, hnb] $ \nb -> do
-      modifySTRef stepIndex (+ (indexTable V.! fromIntegral nb))
-      modifySTRef stepIndex $ \si ->
-        if si < 0 then 0 else if si > 88 then 88 else si
-      let sign = fromIntegral $ nb .&. 8 :: Int32
-          delta = fromIntegral $ nb .&. 7 :: Int32
-      thisStep <- readSTRef step
-      let diff = sum
+      thisStep <- step
+      let sign  = nb .&. 8
+          diff = sum
             [ thisStep `shiftR` 3
-            , if delta .&. 4 /= 0 then thisStep            else 0
-            , if delta .&. 2 /= 0 then thisStep `shiftR` 1 else 0
-            , if delta .&. 1 /= 0 then thisStep `shiftR` 2 else 0
+            , if nb .&. 4 /= 0 then thisStep            else 0
+            , if nb .&. 2 /= 0 then thisStep `shiftR` 1 else 0
+            , if nb .&. 1 /= 0 then thisStep `shiftR` 2 else 0
             ]
-      prevPredictor <- readSTRef predictor
-      if sign /= 0
-        then let
-          p = fromIntegral prevPredictor - fromIntegral diff :: Int32
-          in writeSTRef predictor $ if p < (-32768) then -32768 else fromIntegral p
-        else let
-          p = fromIntegral prevPredictor + fromIntegral diff :: Int32
-          in writeSTRef predictor $ if p > 32767 then 32767 else fromIntegral p
-      readSTRef stepIndex >>= writeSTRef step . (stepTable V.!) . fromIntegral
+      modifySTRef predictor $ \old -> let
+        op = if sign /= 0 then (-) else (+)
+        new = fromIntegral old `op` fromIntegral diff :: Int32
+        in fromIntegral $ clamp (-32768, 32767) new
+      modifySTRef stepIndex $ \old ->
+        clamp (0, 88) $ old + (indexTable V.! fromIntegral nb)
       readSTRef predictor
   finalPredictor <- readSTRef predictor
   return (finalPredictor, v)
+
+clamp :: (Ord a) => (a, a) -> a -> a
+clamp (vmin, vmax) v
+  | v < vmin  = vmin
+  | v > vmax  = vmax
+  | otherwise = v
 
 indexTable :: V.Vector Int16
 indexTable = V.fromList
@@ -128,21 +127,18 @@ stepTable = V.fromList
 writeWAV :: (MonadIO m) => FilePath -> C.Sink (V.Vector (Int16, Int16)) m ()
 writeWAV fp = do
   h <- liftIO $ openBinaryFile fp WriteMode
-  let startChunk ctype = liftIO $ do
-        B.hPut h ctype
-        B.hPut h "XXXX" -- filled in later
-        hGetPosn h
-      endChunk startPosn = liftIO $ do
-        endPosn <- hGetPosn h
-        case (startPosn, endPosn) of
-          (HandlePosn _ start, HandlePosn _ end) -> do
-            hSeek h AbsoluteSeek $ start - 4
-            writeLE h (fromIntegral $ end - start :: Word32)
-            hSeek h AbsoluteSeek end
-      chunk ctype f = do
-        c <- startChunk ctype
+  let chunk ctype f = do
+        let getPosn = liftIO $ hGetPosn h
+        liftIO $ B.hPut h ctype
+        lenPosn <- getPosn
+        liftIO $ B.hPut h $ B.pack [0xDE, 0xAD, 0xBE, 0xEF] -- filled in later
+        HandlePosn _ start <- getPosn
         x <- f
-        endChunk c
+        endPosn@(HandlePosn _ end) <- getPosn
+        liftIO $ do
+          hSetPosn lenPosn
+          writeLE h (fromIntegral $ end - start :: Word32)
+          hSetPosn endPosn
         return x
   chunk "RIFF" $ do
     liftIO $ B.hPut h "WAVE"
@@ -153,15 +149,10 @@ writeWAV fp = do
       writeLE h (176400 :: Word32) -- avg. bytes per second = rate * block align
       writeLE h (4      :: Word16) -- block align = chans * (bps / 8)
       writeLE h (16     :: Word16) -- bits per sample
-    chunk "data" $ let
-      go = C.await >>= \case
-        Nothing -> return ()
-        Just v  -> do
-          forM_ v $ \(l, r) -> liftIO $ do
-            writeLE h l
-            writeLE h r
-          go
-      in go
+    chunk "data" $ CL.mapM_ $ \v -> liftIO $ do
+      forM_ v $ \(l, r) -> do
+        writeLE h l
+        writeLE h r
   liftIO $ hClose h
 
 class BE a where
