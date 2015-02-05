@@ -18,32 +18,48 @@ import System.IO
 import GHC.IO.Handle (HandlePosn(..))
 import Data.Bits
 import Data.Foldable (forM_)
-import Control.Monad (unless, forM)
+import Control.Monad (unless, forM, liftM2)
 
 import Control.Monad.ST
 import Data.STRef
 
-findChunks :: Integer -> Handle -> IO [(B.ByteString, (HandlePosn, Integer))]
-findChunks 0   _ = return []
-findChunks len h = do
+parseChunk :: Handle -> IO (B.ByteString, (HandlePosn, HandlePosn))
+parseChunk h = do
   ctype <- B.hGet h 4
   clen <- fmap toInteger (readBE h :: IO Word32)
-  cstart <- hGetPosn h
+  startPosn <- hGetPosn h
   hSeek h RelativeSeek clen
-  rest <- findChunks (len - clen - 8) h
-  return $ (ctype, (cstart, clen)) : rest
+  endPosn <- hGetPosn h
+  return (ctype, (startPosn, endPosn))
+
+parseChunksUntil
+  :: Maybe HandlePosn -> Handle -> IO [(B.ByteString, (HandlePosn, HandlePosn))]
+parseChunksUntil maybeEnd h = do
+  eof <- hIsEOF h
+  HandlePosn _ here <- hGetPosn h
+  let pastEnd = case maybeEnd of
+        Nothing                 -> False
+        Just (HandlePosn _ end) -> end <= here
+  if eof || pastEnd
+    then return []
+    else liftM2 (:) (parseChunk h) (parseChunksUntil maybeEnd h)
 
 readIMA :: (MonadIO m) => FilePath -> C.Source m (V.Vector (Int16, Int16))
 readIMA fp = do
   h <- liftIO $ openBinaryFile fp ReadMode
-  "FORM" <- liftIO $ B.hGet h 4
-  len <- liftIO (readBE h :: IO Word32)
-  "AIFC" <- liftIO $ B.hGet h 4
-  chunks <- liftIO $ findChunks (fromIntegral len - 4) h
-  frames <- case lookup "COMM" chunks of
-    Nothing -> error "readIMA: no COMM chunk"
-    Just (comm, _) -> do
-      liftIO $ hSetPosn comm
+  let ctype `chunkBefore` maybeEnd = \f -> do
+        here <- liftIO $ hGetPosn h
+        chunks <- liftIO $ parseChunksUntil maybeEnd h
+        case lookup ctype chunks of
+          Nothing -> error $ "readIMA: no chunk of type " ++ show ctype
+          Just (start, end) -> do
+            liftIO $ hSetPosn start
+            x <- f end
+            liftIO $ hSetPosn here
+            return x
+  "FORM" `chunkBefore` Nothing $ \formEnd -> do
+    "AIFC" <- liftIO $ B.hGet h 4
+    frames <- "COMM" `chunkBefore` Just formEnd $ \_ -> do
       2 <- liftIO (readBE h :: IO Word16) -- channels
       frames <- liftIO (readBE h :: IO Word32) -- number of chunk pairs
       bits <- liftIO (readBE h :: IO Word16) -- bits per sample, 0 means 16?
@@ -55,10 +71,7 @@ readIMA fp = do
       0 <- liftIO (readBE h :: IO Word16)
       "ima4" <- liftIO $ B.hGet h 4
       return frames
-  case lookup "SSND" chunks of
-    Nothing -> error "readIMA: no SSND chunk"
-    Just (ssnd, _) -> do
-      liftIO $ hSetPosn ssnd
+    "SSND" `chunkBefore` Just formEnd $ \_ -> do
       0 <- liftIO (readBE h :: IO Word32) -- offset
       0 <- liftIO (readBE h :: IO Word32) -- blocksize
       let go _     _     0         = return ()
