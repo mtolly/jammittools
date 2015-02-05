@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Sound.Jammit.Internal.Sox
 ( Audio(..)
 , Time(..)
@@ -6,12 +7,15 @@ module Sound.Jammit.Internal.Sox
 ) where
 
 import Control.Arrow (first)
-import Control.Monad (guard)
+import Control.Monad (guard, forever)
 
 import Sound.Jammit.Internal.Audio
 import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 import qualified Data.Vector as V
 import Data.Int
+import Data.Maybe (isNothing, catMaybes)
+import Control.Arrow ((***))
 
 data Audio
   = Empty                 -- ^ An empty stereo file
@@ -40,7 +44,27 @@ renderSource aud = case aud of
     C.yield $ V.replicate samples (0, 0)
     renderSource x
   Concat xs -> mapM_ renderSource xs
-  Mix xs -> undefined
+  Mix xs -> let
+    toSampleSource :: (Double, Audio) -> C.Source IO (Double, Double)
+    toSampleSource (p, x) = renderSource x C.=$= CL.concatMap
+      (V.toList . V.map (\(l, r) -> (multiplyBy p l, multiplyBy p r)))
+    multiplyBy :: Double -> Int16 -> Double
+    multiplyBy p i16 = (fromIntegral i16 / 32767) * p
+    zipped :: C.Source IO [Maybe (Double, Double)]
+    zipped = C.sequenceSources
+      [ (toSampleSource px C.=$= CL.map Just) >> forever (C.yield Nothing) | px <- xs ]
+    loop = C.await >>= \case
+      Nothing -> return () -- shouldn't happen
+      Just maybeSamples -> if all isNothing maybeSamples
+        then return ()
+        else let
+          mixed = doubleToInt16 *** doubleToInt16 $ foldr mix (0, 0) $ catMaybes maybeSamples
+          mix (l1, r1) (l2, r2) = (l1 + l2, r1 + r2)
+          in C.yield (V.singleton mixed) >> loop
+    doubleToInt16 :: Double -> Int16
+    doubleToInt16 d =
+      if d > 1 then maxBound else if d < (-1) then minBound else round $ d * 32767
+    in zipped C.=$= loop
 
 optimize :: Audio -> Audio
 optimize aud = case aud of
