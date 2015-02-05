@@ -12,7 +12,7 @@ module Sound.Jammit.Export
 , runSheet
 ) where
 
-import Control.Applicative ((<$>), liftA2)
+import Control.Applicative (liftA2)
 import Control.Monad (forM)
 import Data.Char (toLower)
 import Data.List (isInfixOf, sort, isPrefixOf)
@@ -21,12 +21,10 @@ import Data.Maybe (catMaybes)
 import System.Directory (getDirectoryContents)
 import System.FilePath ((</>), splitFileName, takeFileName)
 
-import Sound.Jammit.Internal.AIFC2WAV
 import Sound.Jammit.Internal.Image
 import Sound.Jammit.Base
 import Sound.Jammit.Internal.Sox
 import Sound.Jammit.Internal.TempFile
-import Sound.Jammit.Internal.Audio
 
 type Library = [(FilePath, Info, [Track])]
 
@@ -80,19 +78,19 @@ runAudio
   -> [FilePath] -- ^ AIFCs to mix in inverted
   -> FilePath   -- ^ the resulting WAV file
   -> IO ()
-runAudio pos neg fout = runTempIO fout $ do
+runAudio pos neg = let
   -- I've only found one audio file where the instruments are not aligned:
   -- the drums and drums backing track for Take the Time are 38 samples ahead
   -- of the other instruments. So as a hack, we pad the front of them by 38
   -- samples to line things up.
-  let tttDrums     = "793EAAE0-6761-44D7-9A9A-1FB451A2A438_jcfx"
-      tttDrumsBack = "37EE5AA5-4049-4CED-844A-D34F6B165F67_jcfx"
-      aifcToWav' a = if takeFileName a `elem` [tttDrums, tttDrumsBack]
-        then Pad (Samples 38) . File <$> aifcToWav a
-        else File <$> aifcToWav a
-  posWavs <- map (\w -> ( 1, w)) <$> mapM aifcToWav' pos
-  negWavs <- map (\w -> (-1, w)) <$> mapM aifcToWav' neg
-  renderAudio $ optimize $ Mix (posWavs ++ negWavs)
+  tttDrums     = "793EAAE0-6761-44D7-9A9A-1FB451A2A438_jcfx"
+  tttDrumsBack = "37EE5AA5-4049-4CED-844A-D34F6B165F67_jcfx"
+  aifcFile a = if takeFileName a `elem` [tttDrums, tttDrumsBack]
+    then Pad (Samples 38) $ File a
+    else File a
+  posAifcs = map (\f -> ( 1, aifcFile f)) pos
+  negAifcs = map (\f -> (-1, aifcFile f)) neg
+  in renderAudio $ optimize $ Mix $ posAifcs ++ negAifcs
 
 runSheet
   :: [(FilePath, Integer)] -- ^ pairs of @(png file prefix, line height in px)@

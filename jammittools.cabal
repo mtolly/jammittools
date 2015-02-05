@@ -27,7 +27,6 @@ library
     Sound.Jammit.Base
     Sound.Jammit.Export
   other-modules:
-    Sound.Jammit.Internal.AIFC2WAV
     Sound.Jammit.Internal.Sox
     Sound.Jammit.Internal.TempFile
     Sound.Jammit.Internal.Image
@@ -42,17 +41,12 @@ library
     , process       >= 1.1.0.2 && < 1.3
     , temporary     >= 1.1.2.5 && < 1.3
     , transformers  >= 0.3.0.0 && < 0.5
-    , WAVE          >= 0.1.3   && < 0.2
     , JuicyPixels
     , HPDF
     , bytestring
     , conduit
     , vector
   ghc-options:      -Wall -O2
-  c-sources:        cbits/aifc2wav-5.1.c
-  if os(windows)
-    cpp-options:    -DWIDE_CBITS
-    cc-options:     -DWIDE_CBITS
 
 executable jammittools
   main-is:          Main.hs
