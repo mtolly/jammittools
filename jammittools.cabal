@@ -27,10 +27,10 @@ library
     Sound.Jammit.Base
     Sound.Jammit.Export
   other-modules:
-    Sound.Jammit.Internal.Sox
-    Sound.Jammit.Internal.TempFile
-    Sound.Jammit.Internal.Image
     Sound.Jammit.Internal.Audio
+    Sound.Jammit.Internal.AudioExpr
+    Sound.Jammit.Internal.Image
+    Sound.Jammit.Internal.TempIO
   hs-source-dirs:   src
   build-depends:
     base            >= 4.6.0.1 && < 5

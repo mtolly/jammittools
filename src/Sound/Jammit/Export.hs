@@ -23,8 +23,8 @@ import System.FilePath ((</>), splitFileName, takeFileName)
 
 import Sound.Jammit.Internal.Image
 import Sound.Jammit.Base
-import Sound.Jammit.Internal.Sox
-import Sound.Jammit.Internal.TempFile
+import Sound.Jammit.Internal.AudioExpr
+import Sound.Jammit.Internal.TempIO
 
 type Library = [(FilePath, Info, [Track])]
 

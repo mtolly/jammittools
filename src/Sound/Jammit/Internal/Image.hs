@@ -15,7 +15,7 @@ import qualified Data.Conduit as C
 import Data.Maybe (catMaybes)
 import qualified Data.Vector.Storable as V
 
-import Sound.Jammit.Internal.TempFile
+import Sound.Jammit.Internal.TempIO
 
 loadPNG :: FilePath -> IO (P.Image P.PixelRGBA8)
 loadPNG fp = do

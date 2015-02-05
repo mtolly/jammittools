@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module Sound.Jammit.Internal.Sox
+module Sound.Jammit.Internal.AudioExpr
 ( Audio(..)
 , Time(..)
 , renderAudio
