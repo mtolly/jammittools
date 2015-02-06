@@ -78,26 +78,34 @@ main = do
             parts = [note, tab]
             systemHeight = sum $ map snd parts
             fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
-            in runSheet [note, tab] (getPageLines systemHeight args) fout
+            in do
+              putStrLn $ "Exporting notation & tab for " ++ show p
+              runSheet [note, tab] (getPageLines systemHeight args) fout
           _ -> return ()
       forM_ nongtrs $ \p ->
         case getOneResult (Notation p) sheets of
           Left  _    -> return ()
           Right note -> let
             fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
-            in runSheet [note] (getPageLines (snd note) args) fout
+            in do
+              putStrLn $ "Exporting notation for " ++ show p
+              runSheet [note] (getPageLines (snd note) args) fout
       forM_ [minBound .. maxBound] $ \p ->
         case getOneResult (Only p) audios of
           Left  _  -> return ()
           Right fp -> let
             fout = dout </> drop 4 (map toLower (show p) ++ ".wav")
-            in runAudio [fp] [] fout
+            in do
+              putStrLn $ "Exporting audio for " ++ show p
+              runAudio [fp] [] fout
       case chosenBacking of
         Nothing            -> return ()
         Just (inst, fback) -> let
           others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
           fout = dout </> "backing.wav"
-          in runAudio [fback] others fout
+          in do
+            putStrLn "Exporting backing audio (could take a while)"
+            runAudio [fback] others fout
 
 getPageLines :: Integer -> Args -> Int
 getPageLines systemHeight args = let
