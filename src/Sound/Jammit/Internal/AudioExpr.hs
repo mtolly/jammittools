@@ -6,16 +6,16 @@ module Sound.Jammit.Internal.AudioExpr
 , optimize
 ) where
 
-import Control.Arrow (first)
+import Control.Arrow (first, (***))
 import Control.Monad (guard, forever)
-
-import Sound.Jammit.Internal.Audio
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
+import Data.Conduit.Internal (zipSources)
 import qualified Data.Vector as V
-import Data.Int
-import Data.Maybe (isNothing, catMaybes)
-import Control.Arrow ((***))
+import Data.Int (Int16)
+import Data.Maybe (fromMaybe)
+
+import Sound.Jammit.Internal.Audio
 
 data Audio
   = Empty                 -- ^ An empty stereo file
@@ -45,26 +45,41 @@ renderSource aud = case aud of
     renderSource x
   Concat xs -> mapM_ renderSource xs
   Mix xs -> let
-    toSampleSource :: (Double, Audio) -> C.Source IO (Double, Double)
-    toSampleSource (p, x) = renderSource x C.=$= CL.concatMap
-      (V.toList . V.map (\(l, r) -> (multiplyBy p l, multiplyBy p r)))
+    toDoubles :: (Double, Audio) -> C.Source IO (V.Vector (Double, Double))
+    toDoubles (p, x) = renderSource x C.=$= CL.map (V.map $ multiplyBy p *** multiplyBy p)
     multiplyBy :: Double -> Int16 -> Double
     multiplyBy p i16 = (fromIntegral i16 / 32767) * p
-    zipped :: C.Source IO [Maybe (Double, Double)]
-    zipped = C.sequenceSources
-      [ (toSampleSource px C.=$= CL.map Just) >> forever (C.yield Nothing) | px <- xs ]
-    loop = C.await >>= \case
-      Nothing -> return () -- shouldn't happen
-      Just maybeSamples -> if all isNothing maybeSamples
-        then return ()
-        else let
-          mixed = doubleToInt16 *** doubleToInt16 $ foldr mix (0, 0) $ catMaybes maybeSamples
-          mix (l1, r1) (l2, r2) = (l1 + l2, r1 + r2)
-          in C.yield (V.singleton mixed) >> loop
     doubleToInt16 :: Double -> Int16
     doubleToInt16 d =
       if d > 1 then maxBound else if d < (-1) then minBound else round $ d * 32767
-    in zipped C.=$= loop
+    in foldr mixAudio (return ()) (map toDoubles xs) C.=$= CL.map (V.map $ doubleToInt16 *** doubleToInt16)
+
+mixAudio
+  :: C.Source IO (V.Vector (Double, Double))
+  -> C.Source IO (V.Vector (Double, Double))
+  -> C.Source IO (V.Vector (Double, Double))
+mixAudio s1 s2 = let
+  justify src = (src C.=$= CL.map Just) >> forever (C.yield Nothing)
+  nothingPanic = error "mixAudio: internal error! reached end of infinite stream"
+  mix = V.zipWith $ \(l1, r1) (l2, r2) -> (l1 + l2, r1 + r2)
+  in zipSources (justify s1) (justify s2) C.=$= let
+    loop = C.await >>= \case
+      Nothing -> nothingPanic
+      Just pair -> case pair of
+        (Nothing, Nothing) -> return ()
+        (Just v1, Nothing) -> C.yield v1 >> loop
+        (Nothing, Just v2) -> C.yield v2 >> loop
+        (Just v1, Just v2) -> case compare (V.length v1) (V.length v2) of
+          EQ -> C.yield (mix v1 v2) >> loop
+          LT -> let
+            (v2a, v2b) = V.splitAt (V.length v1) v2
+            in C.yield (mix v1 v2a) >> C.await >>= \case
+              Nothing -> nothingPanic
+              Just (next1, next2) -> do
+                C.leftover (next1, Just $ v2b V.++ fromMaybe V.empty next2)
+                loop
+          GT -> C.leftover (Just v2, Just v1) >> loop
+    in loop
 
 optimize :: Audio -> Audio
 optimize aud = case aud of
