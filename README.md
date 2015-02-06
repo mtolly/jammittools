@@ -1,5 +1,7 @@
 # `jammittools`
 
+![Available on Hackage](https://img.shields.io/hackage/v/jammittools.svg)
+
 A command-line tool for exporting sheet music and audio from the Windows/Mac app [Jammit].
 It should go without saying, but please do not distribute content from songs you have purchased --
 it is for your use only!
