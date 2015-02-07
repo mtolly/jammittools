@@ -9,34 +9,33 @@ module Sound.Jammit.Internal.Audio
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import qualified Data.Vector as V
-import Data.Int
-import Data.Word
+import Data.Int (Int16, Int32)
+import Data.Word (Word16, Word32)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString as B
-import Data.ByteString.Char8 ()
-import System.IO
+import Data.ByteString.Char8 () -- for IsString instance
+import qualified System.IO as IO
 import GHC.IO.Handle (HandlePosn(..))
-import Data.Bits
+import Data.Bits (shiftL, shiftR, (.&.))
 import Data.Foldable (forM_)
 import Control.Monad (unless, forM, liftM2)
+import Control.Monad.ST (runST)
+import Data.STRef (newSTRef, readSTRef, modifySTRef)
 
-import Control.Monad.ST
-import Data.STRef
-
-parseChunk :: Handle -> IO (B.ByteString, (HandlePosn, HandlePosn))
+parseChunk :: IO.Handle -> IO (B.ByteString, (HandlePosn, HandlePosn))
 parseChunk h = do
   ctype <- B.hGet h 4
   clen <- fmap toInteger (readBE h :: IO Word32)
-  startPosn <- hGetPosn h
-  hSeek h RelativeSeek clen
-  endPosn <- hGetPosn h
+  startPosn <- IO.hGetPosn h
+  IO.hSeek h IO.RelativeSeek clen
+  endPosn <- IO.hGetPosn h
   return (ctype, (startPosn, endPosn))
 
 parseChunksUntil
-  :: Maybe HandlePosn -> Handle -> IO [(B.ByteString, (HandlePosn, HandlePosn))]
+  :: Maybe HandlePosn -> IO.Handle -> IO [(B.ByteString, (HandlePosn, HandlePosn))]
 parseChunksUntil maybeEnd h = do
-  eof <- hIsEOF h
-  HandlePosn _ here <- hGetPosn h
+  eof <- IO.hIsEOF h
+  HandlePosn _ here <- IO.hGetPosn h
   let pastEnd = case maybeEnd of
         Nothing                 -> False
         Just (HandlePosn _ end) -> end <= here
@@ -46,16 +45,16 @@ parseChunksUntil maybeEnd h = do
 
 readIMA :: (MonadIO m) => FilePath -> C.Source m (V.Vector (Int16, Int16))
 readIMA fp = do
-  h <- liftIO $ openBinaryFile fp ReadMode
+  h <- liftIO $ IO.openBinaryFile fp IO.ReadMode
   let ctype `chunkBefore` maybeEnd = \f -> do
-        here <- liftIO $ hGetPosn h
+        here <- liftIO $ IO.hGetPosn h
         chunks <- liftIO $ parseChunksUntil maybeEnd h
         case lookup ctype chunks of
           Nothing -> error $ "readIMA: no chunk of type " ++ show ctype
           Just (start, end) -> do
-            liftIO $ hSetPosn start
+            liftIO $ IO.hSetPosn start
             x <- f end
-            liftIO $ hSetPosn here
+            liftIO $ IO.hSetPosn here
             return x
   "FORM" `chunkBefore` Nothing $ \formEnd -> do
     "AIFC" <- liftIO $ B.hGet h 4
@@ -80,10 +79,10 @@ readIMA fp = do
             chunkR <- liftIO $ B.hGet h 34
             let (predL', vectL) = decodeChunk (predL, chunkL)
                 (predR', vectR) = decodeChunk (predR, chunkR)
-            V.zip vectL vectR `C.yieldOr` liftIO (hClose h)
+            V.zip vectL vectR `C.yieldOr` liftIO (IO.hClose h)
             go predL' predR' $ remFrames - 1
       go 0 0 frames
-  liftIO $ hClose h
+  liftIO $ IO.hClose h
 
 decodeChunk :: (Int16, B.ByteString) -> (Int16, V.Vector Int16)
 decodeChunk (initPredictor, chunk) = runST $ do
@@ -139,9 +138,9 @@ stepTable = V.fromList
 
 writeWAV :: (MonadIO m) => FilePath -> C.Sink (V.Vector (Int16, Int16)) m ()
 writeWAV fp = do
-  h <- liftIO $ openBinaryFile fp WriteMode
+  h <- liftIO $ IO.openBinaryFile fp IO.WriteMode
   let chunk ctype f = do
-        let getPosn = liftIO $ hGetPosn h
+        let getPosn = liftIO $ IO.hGetPosn h
         liftIO $ B.hPut h ctype
         lenPosn <- getPosn
         liftIO $ B.hPut h $ B.pack [0xDE, 0xAD, 0xBE, 0xEF] -- filled in later
@@ -149,9 +148,9 @@ writeWAV fp = do
         x <- f
         endPosn@(HandlePosn _ end) <- getPosn
         liftIO $ do
-          hSetPosn lenPosn
+          IO.hSetPosn lenPosn
           writeLE h (fromIntegral $ end - start :: Word32)
-          hSetPosn endPosn
+          IO.hSetPosn endPosn
         return x
   chunk "RIFF" $ do
     liftIO $ B.hPut h "WAVE"
@@ -166,10 +165,10 @@ writeWAV fp = do
       forM_ v $ \(l, r) -> do
         writeLE h l
         writeLE h r
-  liftIO $ hClose h
+  liftIO $ IO.hClose h
 
 class BE a where
-  readBE :: Handle -> IO a
+  readBE :: IO.Handle -> IO a
 
 instance BE Word32 where
   readBE h = do
@@ -196,7 +195,7 @@ instance BE Int16 where
   readBE h = fmap fromIntegral (readBE h :: IO Word16)
 
 class LE a where
-  writeLE :: Handle -> a -> IO ()
+  writeLE :: IO.Handle -> a -> IO ()
 
 instance LE Word32 where
   writeLE h w = B.hPut h $ B.pack [a, b, c, d] where
