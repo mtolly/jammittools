@@ -22,8 +22,22 @@ printUsage :: IO ()
 printUsage = do
   prog <- Env.getProgName
   putStrLn $ "jammittools v" ++ showVersion Paths.version
-  let header = "Usage: " ++ prog ++ " [options]"
+  putStrLn ""
+  let header = "Usage: " ++ prog ++ " -t <title> -r <artist> [options]"
   putStr $ Opt.usageInfo header argOpts
+  putStrLn ""
+  putStrLn "Instrument parts:"
+  putStr showCharPartMap
+  putStrLn "For sheet music, GRB are tab instead of notation."
+  putStrLn "For audio, GBDKV are the backing tracks for each instrument."
+  putStrLn ""
+  putStrLn "Example usage:"
+  putStrLn   "  # Export all sheet music and audio to a new folder"
+  putStrLn $ "  mkdir export; " ++ prog ++ " -t title -r artist -x export"
+  putStrLn   "  # Make a sheet music PDF with Guitar 1's notation and tab"
+  putStrLn $ "  " ++ prog ++ " -t title -r artist -y gr -s gtr1.pdf"
+  putStrLn   "  # Make an audio track with no drums and no vocals"
+  putStrLn $ "  " ++ prog ++ " -t title -r artist -y D -n vx -a nodrumsvox.wav"
 
 main :: IO ()
 main = do
@@ -176,12 +190,12 @@ argOpts =
     (Opt.ReqArg
       (\s a -> a { filterLibrary = fuzzySearchBy title s . filterLibrary a })
       "str")
-    "search by song title"
+    "search by song title (fuzzy)"
   , Opt.Option ['r'] ["artist"]
     (Opt.ReqArg
       (\s a -> a { filterLibrary = fuzzySearchBy artist s . filterLibrary a })
       "str")
-    "search by song artist"
+    "search by song artist (fuzzy)"
   , Opt.Option ['T'] ["title-exact"]
     (Opt.ReqArg
       (\s a -> a { filterLibrary = exactSearchBy title s . filterLibrary a })
@@ -269,6 +283,14 @@ partToChar p = case p of
 
 charPartMap :: [(Char, Part)]
 charPartMap = [ (partToChar p, p) | p <- [minBound .. maxBound] ]
+
+showCharPartMap :: String
+showCharPartMap = let
+  len = ceiling (fromIntegral (length charPartMap) / 2 :: Double)
+  (map1, map2) = splitAt len charPartMap
+  col1 = vcat left [ text $ [c] ++ ": " ++ drop 4 (show p) | (c, p) <- map1 ]
+  col2 = vcat left [ text $ [c] ++ ": " ++ drop 4 (show p) | (c, p) <- map2 ]
+  in render $ hsep 2 top [text "", col1, col2]
 
 charToSheetPart :: Char -> Maybe SheetPart
 charToSheetPart c = let
