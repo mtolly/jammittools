@@ -40,21 +40,21 @@ main = do
       matches <- searchResults args
       putStr $ showLibrary matches
     ExportAudio fout -> do
-      matches <- getAudioParts <$> searchResults args
+      matches <- getAudioParts <$> searchResultsChecked args
       let f = mapM (`getOneResult` matches) . mapMaybe charToAudioPart
       case (f $ selectParts args, f $ rejectParts args) of
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
         (Right yaifcs, Right naifcs) -> runAudio yaifcs naifcs fout
     CheckPresence -> do
-      matches <- getAudioParts <$> searchResults args
+      matches <- getAudioParts <$> searchResultsChecked args
       let f = mapM (`getOneResult` matches) . mapMaybe charToAudioPart
       case (f $ selectParts args, f $ rejectParts args) of
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
         (Right _     , Right _     ) -> return ()
     ExportSheet fout -> do
-      matches <- getSheetParts <$> searchResults args
+      matches <- getSheetParts <$> searchResultsChecked args
       let f = mapM (`getOneResult` matches) . mapMaybe charToSheetPart
       case f $ selectParts args of
         Left  err   -> error err
@@ -62,7 +62,7 @@ main = do
           systemHeight = sum $ map snd parts
           in runSheet parts (getPageLines systemHeight args) fout
     ExportAll dout -> do
-      matches <- searchResults args
+      matches <- searchResultsChecked args
       let sheets = getSheetParts matches
           audios = getAudioParts matches
           backingOrder = [Drums, Guitar, Keyboard, Bass, Vocal]
@@ -118,7 +118,14 @@ getPageLines systemHeight args = let
 getOneResult :: (Eq a, Show a) => a -> [(a, b)] -> Either String b
 getOneResult x xys = case [ b | (a, b) <- xys, a == x ] of
   [y] -> Right y
-  ys  -> Left $ "Got " ++ show (length ys) ++ " results for " ++ show x
+  []  -> Left $ "Couldn't find the part " ++ show x
+  ys  -> Left $ unwords
+    [ "Found"
+    , show $ length ys
+    , "different parts for"
+    , show x ++ ";"
+    , "this is probably a bug?"
+    ]
 
 -- | Displays a table of the library, possibly filtered by search terms.
 showLibrary :: Library -> String
@@ -147,6 +154,21 @@ searchResults args = do
         in fromMaybe (error err) <$> findJammitDir
   db <- loadLibrary jmt
   return $ filterLibrary args db
+
+-- | Checks that the search actually narrowed down the library to a single song.
+searchResultsChecked :: Args -> IO Library
+searchResultsChecked args = do
+  lib <- searchResults args
+  case [ info | (_, info, _) <- lib ] of
+    []     -> do
+      putStrLn "No songs matched your search."
+      exitFailure
+    x : xs -> if all (\y -> title y == title x && artist y == artist x) xs
+      then return lib
+      else do
+        putStrLn "Multiple songs matched your search:"
+        putStr $ showLibrary lib
+        exitFailure
 
 argOpts :: [Opt.OptDescr (Args -> Args)]
 argOpts =
