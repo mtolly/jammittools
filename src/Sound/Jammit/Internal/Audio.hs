@@ -1,3 +1,7 @@
+{- |
+AIFC\/IMA audio decoding functions in this module are ported from
+http://sed.free.fr/aifc2wav.html
+-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NegativeLiterals #-}
 {-# LANGUAGE OverloadedStrings #-}
