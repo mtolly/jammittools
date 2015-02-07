@@ -22,8 +22,22 @@ printUsage :: IO ()
 printUsage = do
   prog <- Env.getProgName
   putStrLn $ "jammittools v" ++ showVersion Paths.version
-  let header = "Usage: " ++ prog ++ " [options]"
+  putStrLn ""
+  let header = "Usage: " ++ prog ++ " -t <title> -r <artist> [options]"
   putStr $ Opt.usageInfo header argOpts
+  putStrLn ""
+  putStrLn "Instrument parts:"
+  putStr showCharPartMap
+  putStrLn "For sheet music, GRB are tab instead of notation."
+  putStrLn "For audio, GBDKV are the backing tracks for each instrument."
+  putStrLn ""
+  putStrLn "Example usage:"
+  putStrLn   "  # Export all sheet music and audio to a new folder"
+  putStrLn $ "  mkdir export; " ++ prog ++ " -t title -r artist -x export"
+  putStrLn   "  # Make a sheet music PDF with Guitar 1's notation and tab"
+  putStrLn $ "  " ++ prog ++ " -t title -r artist -y gr -s gtr1.pdf"
+  putStrLn   "  # Make an audio track with no drums and no vocals"
+  putStrLn $ "  " ++ prog ++ " -t title -r artist -y D -n vx -a nodrumsvox.wav"
 
 main :: IO ()
 main = do
@@ -40,21 +54,21 @@ main = do
       matches <- searchResults args
       putStr $ showLibrary matches
     ExportAudio fout -> do
-      matches <- getAudioParts <$> searchResults args
+      matches <- getAudioParts <$> searchResultsChecked args
       let f = mapM (`getOneResult` matches) . mapMaybe charToAudioPart
       case (f $ selectParts args, f $ rejectParts args) of
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
         (Right yaifcs, Right naifcs) -> runAudio yaifcs naifcs fout
     CheckPresence -> do
-      matches <- getAudioParts <$> searchResults args
+      matches <- getAudioParts <$> searchResultsChecked args
       let f = mapM (`getOneResult` matches) . mapMaybe charToAudioPart
       case (f $ selectParts args, f $ rejectParts args) of
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
         (Right _     , Right _     ) -> return ()
     ExportSheet fout -> do
-      matches <- getSheetParts <$> searchResults args
+      matches <- getSheetParts <$> searchResultsChecked args
       let f = mapM (`getOneResult` matches) . mapMaybe charToSheetPart
       case f $ selectParts args of
         Left  err   -> error err
@@ -62,7 +76,7 @@ main = do
           systemHeight = sum $ map snd parts
           in runSheet parts (getPageLines systemHeight args) fout
     ExportAll dout -> do
-      matches <- searchResults args
+      matches <- searchResultsChecked args
       let sheets = getSheetParts matches
           audios = getAudioParts matches
           backingOrder = [Drums, Guitar, Keyboard, Bass, Vocal]
@@ -78,26 +92,34 @@ main = do
             parts = [note, tab]
             systemHeight = sum $ map snd parts
             fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
-            in runSheet [note, tab] (getPageLines systemHeight args) fout
+            in do
+              putStrLn $ "Exporting notation & tab for " ++ show p
+              runSheet [note, tab] (getPageLines systemHeight args) fout
           _ -> return ()
       forM_ nongtrs $ \p ->
         case getOneResult (Notation p) sheets of
           Left  _    -> return ()
           Right note -> let
             fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
-            in runSheet [note] (getPageLines (snd note) args) fout
+            in do
+              putStrLn $ "Exporting notation for " ++ show p
+              runSheet [note] (getPageLines (snd note) args) fout
       forM_ [minBound .. maxBound] $ \p ->
         case getOneResult (Only p) audios of
           Left  _  -> return ()
           Right fp -> let
             fout = dout </> drop 4 (map toLower (show p) ++ ".wav")
-            in runAudio [fp] [] fout
+            in do
+              putStrLn $ "Exporting audio for " ++ show p
+              runAudio [fp] [] fout
       case chosenBacking of
         Nothing            -> return ()
         Just (inst, fback) -> let
           others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
           fout = dout </> "backing.wav"
-          in runAudio [fback] others fout
+          in do
+            putStrLn "Exporting backing audio (could take a while)"
+            runAudio [fback] others fout
 
 getPageLines :: Integer -> Args -> Int
 getPageLines systemHeight args = let
@@ -110,7 +132,14 @@ getPageLines systemHeight args = let
 getOneResult :: (Eq a, Show a) => a -> [(a, b)] -> Either String b
 getOneResult x xys = case [ b | (a, b) <- xys, a == x ] of
   [y] -> Right y
-  ys  -> Left $ "Got " ++ show (length ys) ++ " results for " ++ show x
+  []  -> Left $ "Couldn't find the part " ++ show x
+  ys  -> Left $ unwords
+    [ "Found"
+    , show $ length ys
+    , "different parts for"
+    , show x ++ ";"
+    , "this is probably a bug?"
+    ]
 
 -- | Displays a table of the library, possibly filtered by search terms.
 showLibrary :: Library -> String
@@ -140,18 +169,33 @@ searchResults args = do
   db <- loadLibrary jmt
   return $ filterLibrary args db
 
+-- | Checks that the search actually narrowed down the library to a single song.
+searchResultsChecked :: Args -> IO Library
+searchResultsChecked args = do
+  lib <- searchResults args
+  case [ info | (_, info, _) <- lib ] of
+    []     -> do
+      putStrLn "No songs matched your search."
+      exitFailure
+    x : xs -> if all (\y -> title y == title x && artist y == artist x) xs
+      then return lib
+      else do
+        putStrLn "Multiple songs matched your search:"
+        putStr $ showLibrary lib
+        exitFailure
+
 argOpts :: [Opt.OptDescr (Args -> Args)]
 argOpts =
   [ Opt.Option ['t'] ["title"]
     (Opt.ReqArg
       (\s a -> a { filterLibrary = fuzzySearchBy title s . filterLibrary a })
       "str")
-    "search by song title"
+    "search by song title (fuzzy)"
   , Opt.Option ['r'] ["artist"]
     (Opt.ReqArg
       (\s a -> a { filterLibrary = fuzzySearchBy artist s . filterLibrary a })
       "str")
-    "search by song artist"
+    "search by song artist (fuzzy)"
   , Opt.Option ['T'] ["title-exact"]
     (Opt.ReqArg
       (\s a -> a { filterLibrary = exactSearchBy title s . filterLibrary a })
@@ -239,6 +283,14 @@ partToChar p = case p of
 
 charPartMap :: [(Char, Part)]
 charPartMap = [ (partToChar p, p) | p <- [minBound .. maxBound] ]
+
+showCharPartMap :: String
+showCharPartMap = let
+  len = ceiling (fromIntegral (length charPartMap) / 2 :: Double)
+  (map1, map2) = splitAt len charPartMap
+  col1 = vcat left [ text $ [c] ++ ": " ++ drop 4 (show p) | (c, p) <- map1 ]
+  col2 = vcat left [ text $ [c] ++ ": " ++ drop 4 (show p) | (c, p) <- map2 ]
+  in render $ hsep 2 top [text "", col1, col2]
 
 charToSheetPart :: Char -> Maybe SheetPart
 charToSheetPart c = let

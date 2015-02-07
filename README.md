@@ -1,18 +1,12 @@
 # `jammittools`
 
+![Available on Hackage](https://img.shields.io/hackage/v/jammittools.svg)
+
 A command-line tool for exporting sheet music and audio from the Windows/Mac app [Jammit].
 It should go without saying, but please do not distribute content from songs you have purchased --
 it is for your use only!
 
 [Jammit]: https://www.jammit.com/
-
-## Requirements
-
-This is basically a fancy shell script but written in Haskell.
-[ImageMagick](http://www.imagemagick.org) and [Sox](http://sox.sourceforge.net/)
-are used to do the actual conversion work, so install those and put them in your path.
-If you're on Windows, `jammittools` will look in your Program Files for both of them
-so you shouldn't need to do anything after running their installers.
 
 ## Usage
 
