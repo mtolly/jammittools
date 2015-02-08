@@ -35,7 +35,7 @@ printUsage = do
   putStrLn   "  # Export all sheet music and audio to a new folder"
   putStrLn $ "  mkdir export; " ++ prog ++ " -t title -r artist -x export"
   putStrLn   "  # Make a sheet music PDF with Guitar 1's notation and tab"
-  putStrLn $ "  " ++ prog ++ " -t title -r artist -y gr -s gtr1.pdf"
+  putStrLn $ "  " ++ prog ++ " -t title -r artist -y gG -s gtr1.pdf"
   putStrLn   "  # Make an audio track with no drums and no vocals"
   putStrLn $ "  " ++ prog ++ " -t title -r artist -y D -n vx -a nodrumsvox.wav"
 
