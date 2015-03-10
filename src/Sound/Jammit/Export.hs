@@ -23,8 +23,11 @@ import System.FilePath ((</>), splitFileName, takeFileName)
 
 import Sound.Jammit.Internal.Image
 import Sound.Jammit.Base
-import Sound.Jammit.Internal.AudioExpr
+import Sound.Jammit.Internal.Audio
 import Sound.Jammit.Internal.TempIO
+
+import qualified Data.Conduit.Audio as A
+import Control.Monad.Trans.Resource (MonadResource, runResourceT)
 
 type Library = [(FilePath, Info, [Track])]
 
@@ -73,24 +76,29 @@ getSheetParts lib = do
         else [sheet]
     _ -> []
 
+audioSource :: (MonadResource m) => FilePath -> A.AudioSource m
+audioSource fp = if takeFileName fp `elem` [tttDrums, tttDrumsBack]
+  then A.padStartFrames 38 $ readIMA fp
+  else readIMA fp
+  -- I've only found one audio file where the instruments are not aligned:
+  -- the drums and drums backing track for Take the Time are 38 samples ahead
+  -- of the other instruments. So as a hack, we pad the front of them by 38
+  -- samples to line things up.
+  where tttDrums     = "793EAAE0-6761-44D7-9A9A-1FB451A2A438_jcfx"
+        tttDrumsBack = "37EE5AA5-4049-4CED-844A-D34F6B165F67_jcfx"
+
 runAudio
   :: [FilePath] -- ^ AIFCs to mix in normally
   -> [FilePath] -- ^ AIFCs to mix in inverted
   -> FilePath   -- ^ the resulting WAV file
   -> IO ()
-runAudio pos neg = let
-  -- I've only found one audio file where the instruments are not aligned:
-  -- the drums and drums backing track for Take the Time are 38 samples ahead
-  -- of the other instruments. So as a hack, we pad the front of them by 38
-  -- samples to line things up.
-  tttDrums     = "793EAAE0-6761-44D7-9A9A-1FB451A2A438_jcfx"
-  tttDrumsBack = "37EE5AA5-4049-4CED-844A-D34F6B165F67_jcfx"
-  aifcFile a = if takeFileName a `elem` [tttDrums, tttDrumsBack]
-    then Pad (Samples 38) $ File a
-    else File a
-  posAifcs = map (\f -> ( 1, aifcFile f)) pos
-  negAifcs = map (\f -> (-1, aifcFile f)) neg
-  in renderAudio $ optimize $ Mix $ posAifcs ++ negAifcs
+runAudio pos neg fp = let
+  src = case (map audioSource pos, map audioSource neg) of
+    ([]    , []    ) -> A.silent 0 44100 2
+    (p : ps, []    ) -> foldr A.mix p ps
+    ([]    , n : ns) -> A.gain (-1) $ foldr A.mix n ns
+    (p : ps, n : ns) -> A.mix (foldr A.mix p ps) $ A.gain (-1) $ foldr A.mix n ns
+  in runResourceT $ writeWAV fp src
 
 runSheet
   :: [(FilePath, Integer)] -- ^ pairs of @(png file prefix, line height in px)@
