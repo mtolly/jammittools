@@ -15,6 +15,7 @@ module Sound.Jammit.Export
 import Control.Applicative (liftA2)
 import Control.Monad (forM)
 import Data.Char (toLower)
+import Data.Int (Int16)
 import Data.List (isInfixOf, sort, isPrefixOf)
 import Data.Maybe (catMaybes)
 
@@ -76,7 +77,7 @@ getSheetParts lib = do
         else [sheet]
     _ -> []
 
-audioSource :: (MonadResource m) => FilePath -> A.AudioSource m
+audioSource :: (MonadResource m) => FilePath -> A.AudioSource m Int16
 audioSource fp = if takeFileName fp `elem` [tttDrums, tttDrumsBack]
   then A.padStartFrames 38 $ readIMA fp
   else readIMA fp

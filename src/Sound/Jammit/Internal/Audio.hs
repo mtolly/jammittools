@@ -49,7 +49,7 @@ parseChunksUntil maybeEnd h = do
     then return []
     else liftM2 (:) (parseChunk h) (parseChunksUntil maybeEnd h)
 
-readIMA :: (MonadResource m) => FilePath -> A.AudioSource m
+readIMA :: (MonadResource m) => FilePath -> A.AudioSource m Int16
 readIMA fp = let
   src = C.bracketP
     (IO.openBinaryFile fp IO.ReadMode)
@@ -88,10 +88,8 @@ readIMA fp = let
                 chunkR <- liftIO $ B.hGet h 34
                 let (predL', vectL) = decodeChunk (predL, chunkL)
                     (predR', vectR) = decodeChunk (predR, chunkR)
-                C.yield $ V.map floatSample $ A.interleave [vectL, vectR]
+                C.yield $ A.interleave [vectL, vectR]
                 go predL' predR' $ remFrames - 1
-              floatSample :: Int16 -> Float
-              floatSample i = fromIntegral i / 32768
           go 0 0 frames
   in A.AudioSource src 44100 2 undefined
 
@@ -147,7 +145,7 @@ stepTable = V.fromList
   , 15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
   ]
 
-writeWAV :: (MonadResource m) => FilePath -> A.AudioSource m -> m ()
+writeWAV :: (MonadResource m) => FilePath -> A.AudioSource m Int16 -> m ()
 writeWAV fp (A.AudioSource s r c _) = s C.$$ C.bracketP
   (IO.openBinaryFile fp IO.WriteMode)
   IO.hClose
@@ -165,11 +163,6 @@ writeWAV fp (A.AudioSource s r c _) = s C.$$ C.bracketP
             writeLE h (fromIntegral $ end - start :: Word32)
             IO.hSetPosn endPosn
           return x
-        fromFloatSample :: Float -> Int16
-        fromFloatSample f
-          | f <= (-1) = minBound
-          | f >= 1    = maxBound
-          | otherwise = round $ f * 32767
     chunk "RIFF" $ do
       liftIO $ B.hPut h "WAVE"
       chunk "fmt " $ liftIO $ do
@@ -180,7 +173,7 @@ writeWAV fp (A.AudioSource s r c _) = s C.$$ C.bracketP
         writeLE h (fromIntegral c * 2           :: Word16) -- block align = chans * (bps / 8)
         writeLE h (16                           :: Word16) -- bits per sample
       chunk "data" $ CL.mapM_ $ \v -> liftIO $ do
-        V.forM_ v $ writeLE h . fromFloatSample
+        V.forM_ v $ writeLE h
   )
 
 class BE a where
