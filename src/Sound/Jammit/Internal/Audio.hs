@@ -8,6 +8,7 @@ http://sed.free.fr/aifc2wav.html
 module Sound.Jammit.Internal.Audio
 ( readIMA
 , writeWAV
+, clamp
 ) where
 
 import qualified Data.Conduit as C

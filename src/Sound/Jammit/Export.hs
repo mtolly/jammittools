@@ -1,6 +1,7 @@
 {- |
 Functions for exporting Jammit audio (as WAV) and sheet music (as PDF).
 -}
+{-# LANGUAGE NegativeLiterals #-}
 module Sound.Jammit.Export
 ( Library
 , fuzzySearchBy
@@ -15,7 +16,7 @@ module Sound.Jammit.Export
 import Control.Applicative (liftA2)
 import Control.Monad (forM)
 import Data.Char (toLower)
-import Data.Int (Int16)
+import Data.Int (Int16, Int32)
 import Data.List (isInfixOf, sort, isPrefixOf)
 import Data.Maybe (catMaybes)
 
@@ -96,9 +97,17 @@ runAudio
 runAudio pos neg fp = let
   src = case (map audioSource pos, map audioSource neg) of
     ([]    , []    ) -> A.silent 0 44100 2
-    (p : ps, []    ) -> foldr A.mix p ps
-    ([]    , n : ns) -> A.gain (-1) $ foldr A.mix n ns
-    (p : ps, n : ns) -> A.mix (foldr A.mix p ps) $ A.gain (-1) $ foldr A.mix n ns
+    ([p]   , []    ) -> p
+    ([]    , [n]   ) -> A.mapSamples negate16 n
+    (p : ps, []    ) -> i32To16 $ mix16To32 p ps
+    ([]    , n : ns) -> i32To16 $ A.mapSamples negate $ mix16To32 n ns
+    (p : ps, n : ns) -> i32To16 $ A.mix (mix16To32 p ps) $ A.mapSamples negate $ mix16To32 n ns
+  i16To32 = A.mapSamples (fromIntegral :: Int16 -> Int32)
+  i32To16 = A.mapSamples (fromIntegral . clamp (-32768, 32767) :: Int32 -> Int16)
+  negate16 :: Int16 -> Int16
+  negate16 (-32768) = 32767
+  negate16 x        = negate x
+  mix16To32 x xs = foldr A.mix (i16To32 x) (map i16To32 xs)
   in runResourceT $ writeWAV fp src
 
 runSheet
