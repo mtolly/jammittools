@@ -50,49 +50,54 @@ parseChunksUntil maybeEnd h = do
     then return []
     else liftM2 (:) (parseChunk h) (parseChunksUntil maybeEnd h)
 
-readIMA :: (MonadResource m) => FilePath -> A.AudioSource m Int16
-readIMA fp = let
-  src = C.bracketP
-    (IO.openBinaryFile fp IO.ReadMode)
-    IO.hClose
-    $ \h -> do
-      let ctype `chunkBefore` maybeEnd = \f -> do
-            here <- liftIO $ IO.hGetPosn h
-            chunks <- liftIO $ parseChunksUntil maybeEnd h
-            case lookup ctype chunks of
-              Nothing -> error $ "readIMA: no chunk of type " ++ show ctype
-              Just (start, end) -> do
-                liftIO $ IO.hSetPosn start
-                x <- f end
-                liftIO $ IO.hSetPosn here
-                return x
-      "FORM" `chunkBefore` Nothing $ \formEnd -> do
-        "AIFC" <- liftIO $ B.hGet h 4
-        frames <- "COMM" `chunkBefore` Just formEnd $ \_ -> do
-          2 <- liftIO (readBE h :: IO Word16) -- channels
-          frames <- liftIO (readBE h :: IO Word32) -- number of chunk pairs
-          bits <- liftIO (readBE h :: IO Word16) -- bits per sample, 0 means 16?
-          unless (bits `elem` [0, 16]) $ error "readIMA: bits per sample not 16 or 0"
-          -- next 10 bytes are sample rate as long float
-          -- for now we just compare to the known 44100
-          0x400eac44 <- liftIO (readBE h :: IO Word32)
-          0 <- liftIO (readBE h :: IO Word32)
-          0 <- liftIO (readBE h :: IO Word16)
-          "ima4" <- liftIO $ B.hGet h 4
-          return frames
-        "SSND" `chunkBefore` Just formEnd $ \_ -> do
-          0 <- liftIO (readBE h :: IO Word32) -- offset
-          0 <- liftIO (readBE h :: IO Word32) -- blocksize
-          let go _     _     0         = return ()
-              go predL predR remFrames = do
-                chunkL <- liftIO $ B.hGet h 34
-                chunkR <- liftIO $ B.hGet h 34
-                let (predL', vectL) = decodeChunk (predL, chunkL)
-                    (predR', vectR) = decodeChunk (predR, chunkR)
-                C.yield $ A.interleave [vectL, vectR]
-                go predL' predR' $ remFrames - 1
-          go 0 0 frames
-  in A.AudioSource src 44100 2 undefined
+readIMA :: (MonadResource m) => FilePath -> IO (A.AudioSource m Int16)
+readIMA fp = do
+  let insideChunk h ctype maybeEnd f = do
+        here <- liftIO $ IO.hGetPosn h
+        chunks <- liftIO $ parseChunksUntil maybeEnd h
+        case lookup ctype chunks of
+          Nothing -> error $ "readIMA: no chunk of type " ++ show ctype
+          Just (start, end) -> do
+            liftIO $ IO.hSetPosn start
+            x <- f end
+            liftIO $ IO.hSetPosn here
+            return x
+  frames <- IO.withBinaryFile fp IO.ReadMode $ \h -> do
+    let chunkBefore = insideChunk h
+    "FORM" `chunkBefore` Nothing $ \formEnd -> do
+      "AIFC" <- liftIO $ B.hGet h 4
+      "COMM" `chunkBefore` Just formEnd $ \_ -> do
+        2 <- liftIO (readBE h :: IO Word16) -- channels
+        frames <- liftIO (readBE h :: IO Word32) -- number of chunk pairs
+        bits <- liftIO (readBE h :: IO Word16) -- bits per sample, 0 means 16?
+        unless (bits `elem` [0, 16]) $ error "readIMA: bits per sample not 16 or 0"
+        -- next 10 bytes are sample rate as long float
+        -- for now we just compare to the known 44100
+        0x400eac44 <- liftIO (readBE h :: IO Word32)
+        0 <- liftIO (readBE h :: IO Word32)
+        0 <- liftIO (readBE h :: IO Word16)
+        "ima4" <- liftIO $ B.hGet h 4
+        return frames
+  let src = C.bracketP
+        (IO.openBinaryFile fp IO.ReadMode)
+        IO.hClose
+        $ \h -> do
+          let chunkBefore = insideChunk h
+          "FORM" `chunkBefore` Nothing $ \formEnd -> do
+            "AIFC" <- liftIO $ B.hGet h 4
+            "SSND" `chunkBefore` Just formEnd $ \_ -> do
+              0 <- liftIO (readBE h :: IO Word32) -- offset
+              0 <- liftIO (readBE h :: IO Word32) -- blocksize
+              let go _     _     0         = return ()
+                  go predL predR remFrames = do
+                    chunkL <- liftIO $ B.hGet h 34
+                    chunkR <- liftIO $ B.hGet h 34
+                    let (predL', vectL) = decodeChunk (predL, chunkL)
+                        (predR', vectR) = decodeChunk (predR, chunkR)
+                    C.yield $ A.interleave [vectL, vectR]
+                    go predL' predR' $ remFrames - 1
+              go 0 0 frames
+  return $ A.AudioSource src 44100 2 $ fromIntegral frames
 
 decodeChunk :: (Int16, B.ByteString) -> (Int16, V.Vector Int16)
 decodeChunk (initPredictor, chunk) = runST $ do

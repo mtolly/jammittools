@@ -9,6 +9,7 @@ module Sound.Jammit.Export
 , loadLibrary
 , getAudioParts
 , getSheetParts
+, audioSource
 , runAudio
 , runSheet
 ) where
@@ -78,9 +79,9 @@ getSheetParts lib = do
         else [sheet]
     _ -> []
 
-audioSource :: (MonadResource m) => FilePath -> A.AudioSource m Int16
+audioSource :: (MonadResource m) => FilePath -> IO (A.AudioSource m Int16)
 audioSource fp = if takeFileName fp `elem` [tttDrums, tttDrumsBack]
-  then A.padStartFrames 38 $ readIMA fp
+  then fmap (A.padStartFrames 38) $ readIMA fp
   else readIMA fp
   -- I've only found one audio file where the instruments are not aligned:
   -- the drums and drums backing track for Take the Time are 38 samples ahead
@@ -94,21 +95,23 @@ runAudio
   -> [FilePath] -- ^ AIFCs to mix in inverted
   -> FilePath   -- ^ the resulting WAV file
   -> IO ()
-runAudio pos neg fp = let
-  src = case (map audioSource pos, map audioSource neg) of
-    ([]    , []    ) -> A.silent 0 44100 2
-    ([p]   , []    ) -> p
-    ([]    , [n]   ) -> A.mapSamples negate16 n
-    (p : ps, []    ) -> i32To16 $ mix16To32 p ps
-    ([]    , n : ns) -> i32To16 $ A.mapSamples negate $ mix16To32 n ns
-    (p : ps, n : ns) -> i32To16 $ A.mix (mix16To32 p ps) $ A.mapSamples negate $ mix16To32 n ns
-  i16To32 = A.mapSamples (fromIntegral :: Int16 -> Int32)
-  i32To16 = A.mapSamples (fromIntegral . clamp (-32768, 32767) :: Int32 -> Int16)
-  negate16 :: Int16 -> Int16
-  negate16 (-32768) = 32767
-  negate16 x        = negate x
-  mix16To32 x xs = foldr A.mix (i16To32 x) (map i16To32 xs)
-  in runResourceT $ writeWAV fp src
+runAudio pos neg fp = do
+  pos' <- mapM audioSource pos
+  neg' <- mapM audioSource neg
+  let src = case (pos', neg') of
+        ([]    , []    ) -> A.silent 0 44100 2
+        ([p]   , []    ) -> p
+        ([]    , [n]   ) -> A.mapSamples negate16 n
+        (p : ps, []    ) -> i32To16 $ mix16To32 p ps
+        ([]    , n : ns) -> i32To16 $ A.mapSamples negate $ mix16To32 n ns
+        (p : ps, n : ns) -> i32To16 $ A.mix (mix16To32 p ps) $ A.mapSamples negate $ mix16To32 n ns
+      i16To32 = A.mapSamples (fromIntegral :: Int16 -> Int32)
+      i32To16 = A.mapSamples (fromIntegral . clamp (-32768, 32767) :: Int32 -> Int16)
+      negate16 :: Int16 -> Int16
+      negate16 (-32768) = 32767
+      negate16 x        = negate x
+      mix16To32 x xs = foldr A.mix (i16To32 x) (map i16To32 xs)
+  runResourceT $ writeWAV fp src
 
 runSheet
   :: [(FilePath, Integer)] -- ^ pairs of @(png file prefix, line height in px)@
