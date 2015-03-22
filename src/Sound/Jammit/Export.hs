@@ -81,7 +81,7 @@ getSheetParts lib = do
 
 audioSource :: (MonadResource m) => FilePath -> IO (A.AudioSource m Int16)
 audioSource fp = if takeFileName fp `elem` [tttDrums, tttDrumsBack]
-  then fmap (A.padStartFrames 38) $ readIMA fp
+  then fmap (A.padStart $ A.Frames 38) $ readIMA fp
   else readIMA fp
   -- I've only found one audio file where the instruments are not aligned:
   -- the drums and drums backing track for Take the Time are 38 samples ahead
@@ -99,7 +99,7 @@ runAudio pos neg fp = do
   pos' <- mapM audioSource pos
   neg' <- mapM audioSource neg
   let src = case (pos', neg') of
-        ([]    , []    ) -> A.silent 0 44100 2
+        ([]    , []    ) -> A.silent (A.Frames 0) 44100 2
         ([p]   , []    ) -> p
         ([]    , [n]   ) -> A.mapSamples negate16 n
         (p : ps, []    ) -> i32To16 $ mix16To32 p ps
