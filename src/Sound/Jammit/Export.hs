@@ -1,7 +1,6 @@
 {- |
 Functions for exporting Jammit audio (as WAV) and sheet music (as PDF).
 -}
-{-# LANGUAGE NegativeLiterals #-}
 module Sound.Jammit.Export
 ( Library
 , fuzzySearchBy
@@ -108,8 +107,7 @@ runAudio pos neg fp = do
       i16To32 = A.mapSamples (fromIntegral :: Int16 -> Int32)
       i32To16 = A.mapSamples (fromIntegral . clamp (-32768, 32767) :: Int32 -> Int16)
       negate16 :: Int16 -> Int16
-      negate16 (-32768) = 32767
-      negate16 x        = negate x
+      negate16 x = if x == minBound then maxBound else negate x
       mix16To32 x xs = foldr A.mix (i16To32 x) (map i16To32 xs)
   runResourceT $ writeWAV fp src
 

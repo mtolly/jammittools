@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 module Sound.Jammit.Internal.Image
 ( partsToPages
 , jpegsToPDF
@@ -31,24 +30,24 @@ pngChunks h fps = let
   raw = mapM_ (\fp -> liftIO (loadPNG fp) >>= C.yield) fps
   chunk :: (Monad m) =>
     C.Conduit (P.Image P.PixelRGBA8) m (P.Image P.PixelRGBA8)
-  chunk = C.await >>= \case
+  chunk = C.await >>= \x -> case x of
     Nothing   -> return ()
     Just page -> case span (\c -> P.imageHeight c == h) $ vertSplit h page of
       (full, []  ) -> mapM_ C.yield full >> chunk
-      (full, part) -> mapM_ C.yield full >> C.await >>= \case
+      (full, part) -> mapM_ C.yield full >> C.await >>= \y -> case y of
         Nothing    -> mapM_ C.yield part
         Just page' -> C.leftover (vertConcat $ part ++ [page']) >> chunk
   in raw C.=$= chunk
 
 chunksToPages :: (Monad m) =>
   Int -> C.Conduit [P.Image P.PixelRGBA8] m (P.Image P.PixelRGBA8)
-chunksToPages n = fmap catMaybes (replicateM n C.await) >>= \case
+chunksToPages n = fmap catMaybes (replicateM n C.await) >>= \systems -> case systems of
   [] -> return ()
-  systems -> C.yield (vertConcat $ concat systems) >> chunksToPages n
+  _  -> C.yield (vertConcat $ concat systems) >> chunksToPages n
 
 sinkJPEG :: C.Sink (P.Image P.PixelRGBA8) TempIO [FilePath]
 sinkJPEG = go [] where
-  go jpegs = C.await >>= \case
+  go jpegs = C.await >>= \x -> case x of
     Nothing -> return jpegs
     Just img -> do
       jpeg <- lift $ newTempFile "page.jpg"
