@@ -1,6 +1,7 @@
 {- |
 Basic types and functions for dealing with Jammit song packages.
 -}
+{-# LANGUAGE CPP #-}
 module Sound.Jammit.Base
 ( Instrument(..)
 , Part(..)
@@ -18,7 +19,10 @@ module Sound.Jammit.Base
 , songSubdirs
 ) where
 
-import Control.Applicative ((<$>), (<*>), liftA2)
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative ((<$>), (<*>))
+#endif
+import Control.Applicative (liftA2)
 import Control.Arrow ((***))
 import Control.Exception (evaluate)
 import Control.Monad (filterM, guard)
@@ -179,6 +183,7 @@ fromPlSkills pl = case (PL.fromPlInt pl, PL.fromPlDict pl) of
   (Nothing, Nothing) -> Nothing
   (Just i , _      ) -> Just $ Left i
   (_      , Just d ) -> let
+    getSkill :: (String, PL.PropertyList) -> Maybe (Instrument, Integer)
     getSkill (x, y) = liftA2 (,) (readMaybe $ capitalize x) (PL.fromPlInt y)
     capitalize ""     = ""
     capitalize (c:cs) = toUpper c : map toLower cs

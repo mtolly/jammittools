@@ -1,6 +1,10 @@
+{-# LANGUAGE CPP #-}
 module Main (main) where
 
-import Control.Applicative ((<$>), (<|>))
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative ((<$>))
+#endif
+import Control.Applicative ((<|>))
 import Control.Monad ((>=>), forM_, unless)
 import Data.Char (toLower)
 import Data.List (sort, nub, partition)
