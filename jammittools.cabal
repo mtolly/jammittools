@@ -48,6 +48,10 @@ library
     
     , conduit-audio >= 0.1 && < 0.2
     , resourcet
+
+    -- the following is a temporary hack until this is accepted:
+    -- https://github.com/ekmett/recursion-schemes/pull/12
+    , free < 4.12
   ghc-options:      -Wall -O2
 
 executable jammittools
