@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+`cabal sandbox init`
+`cabal info .`.match(/^* jammittools-([0-9\.]+)\b/) do |md|
+  puts "jammittools-v#{md[1]}"
+  true
+end or throw "Couldn't find the package version"

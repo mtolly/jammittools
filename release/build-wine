@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -e
+set -u
+
+rm -rf dist/
+wine cabal sandbox init
+wine cabal install --only-dependencies
+wine cabal configure
+wine cabal build
+wine strip dist/build/jammittools/jammittools.exe
