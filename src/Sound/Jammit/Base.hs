@@ -14,6 +14,7 @@ module Sound.Jammit.Base
 , audioPartToInstrument
 , Info(..)
 , Track(..)
+, SkillLevel(..)
 , loadInfo
 , loadTracks
 , findJammitDir
@@ -34,9 +35,9 @@ import qualified System.Info as Info
 
 import Sound.Jammit.Internal.PropertyList
 
--- | The "Enum" instance corresponds to the number used in the "instrument"
--- property, and the names (used by "Show"/"Read") are capitalized versions of those
--- used in the "skillLevel" property.
+-- | The 'Enum' instance corresponds to the number used in the 'instrument'
+-- property, and the names (used by 'Show' and 'Read') are capitalized versions
+-- of those used in the 'skillLevel' property.
 data Instrument = Guitar | Bass | Drums | Keyboard | Vocal
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
@@ -51,7 +52,7 @@ data Part
   | PartGuitar2
   | PartBass
   | PartDrums1 -- ^ Used for both Drums and Drums 1
-  | PartDrums2 -- ^ Rarely used. Seen in \"Space Truckin'\"
+  | PartDrums2 -- ^ Rarely used. Seen in \"Space Truckin\'\"
   | PartKeys1 -- ^ Used for both Keys and Keys 1
   | PartKeys2
   | PartPiano -- ^ Rarely used. Seen in \"The Answer Lies Within\" and \"Wait for Sleep\"
@@ -114,15 +115,15 @@ audioPartToInstrument (Only    p) = partToInstrument p
 audioPartToInstrument (Without i) = i
 
 data SkillLevel
-  = SingleSkill Integer
-  | ManySkills  [(Instrument, Integer)]
+  = OneSkill   Integer
+  | ManySkills [(Instrument, Integer)]
   deriving (Eq, Ord, Show, Read)
 
 -- | Can be an integer, or a dict of instrument names to integers.
 instance PropertyListItem SkillLevel where
   fromPropertyList pl
     =   do
-      SingleSkill <$> fromPropertyList pl
+      OneSkill <$> fromPropertyList pl
     <|> do
       dict <- fromPropertyList pl
       fmap ManySkills $ forM (Map.toList dict) $ \(k, v) -> do
