@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Sound.Jammit.Internal.PropertyList
-( readXmlPropertyListFromFile
+( readPropertyList
 , PropertyList(..)
 , PropertyListItem(..)
 , plistToEnum
@@ -15,8 +15,9 @@ import qualified Data.Text.IO as TIO
 import Text.XML.Light
 import qualified Data.Map as Map
 import Text.Read (readMaybe)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, fromJust)
 import Data.Char (isSpace)
+import Control.Monad (guard)
 
 #if !MIN_VERSION_base(4,8,0)
 import Prelude hiding (mapM)
@@ -55,29 +56,29 @@ plist e = case asParent e of
 value :: Element -> Maybe PropertyList
 value e = case asParent e of
   ("array", elts) -> Array <$> mapM value elts
-  ("dict", elts) -> Dict . Map.fromList <$> go elts where
+  ("dict" , elts) -> Dict . Map.fromList <$> go elts where
     go (x : y : xs) = do
       ("key", k) <- asChild x
       v <- value y
       ((k, v) :) <$> go xs
     go [] = Just []
     go _  = Nothing
-  ("true", []) -> Just $ Bool True
+  ("true" , []) -> Just $ Bool True
   ("false", []) -> Just $ Bool False
   _ -> asChild e >>= \case
-    ("string", s) -> Just $ String $ trim s
-    ("real", s) -> Real <$> readMaybe s
+    ("string" , s) -> Just $ String $ trim s
+    ("real"   , s) -> Real    <$> readMaybe s
     ("integer", s) -> Integer <$> readMaybe s
-    _ -> Nothing
+    _              -> Nothing
     where trim = reverse . dropWhile isSpace . reverse . dropWhile isSpace
 
 -- | Reads strictly so as not to exhaust our allowed open files.
-readXmlPropertyListFromFile :: FilePath -> IO PropertyList
-readXmlPropertyListFromFile f = do
+readPropertyList :: FilePath -> IO PropertyList
+readPropertyList f = do
   txt <- TIO.readFile f
   case parseXMLDoc txt >>= plist of
     Nothing -> error $
-      "readXmlPropertyListFromFile: failed to read property list from " ++ f
+      "readPropertyList: failed to read property list from " ++ f
     Just pl -> return pl
 
 -- | Only covers parsing values from property lists.
@@ -121,8 +122,15 @@ instance PropertyListItem Bool where
   fromPropertyList (Integer 1) = Just True
   fromPropertyList _           = Nothing
 
-plistToEnum :: (Enum a) => PropertyList -> Maybe a
-plistToEnum pl = fmap toEnum $ fromPropertyList pl
+plistToEnum :: (Enum a, Bounded a) => PropertyList -> Maybe a
+plistToEnum pl = let
+  minval = fromEnum $ minBound `asTypeOf` fromJust result
+  maxval = fromEnum $ maxBound `asTypeOf` fromJust result
+  result = do
+    n <- fromPropertyList pl
+    guard $ minval <= n && n <= maxval
+    return $ toEnum n
+  in result
 
 fromLookup :: (PropertyListItem a) => String -> Map.Map String PropertyList -> Maybe a
 fromLookup s dict = Map.lookup s dict >>= fromPropertyList

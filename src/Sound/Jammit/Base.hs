@@ -34,12 +34,13 @@ import qualified System.Info as Info
 
 import Sound.Jammit.Internal.PropertyList
 
--- | The Enum instance corresponds to the number used in the "instrument"
--- property, and the names (used by Show/Read) are capitalized versions of those
+-- | The "Enum" instance corresponds to the number used in the "instrument"
+-- property, and the names (used by "Show"/"Read") are capitalized versions of those
 -- used in the "skillLevel" property.
 data Instrument = Guitar | Bass | Drums | Keyboard | Vocal
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
+-- | Used for both the "instrument" and "skillLevel" properties.
 instance PropertyListItem Instrument where
   fromPropertyList pl = plistToEnum pl <|> do
     str <- fromPropertyList pl
@@ -61,13 +62,13 @@ data Part
   deriving (Eq, Ord, Show, Read, Enum, Bounded)
 
 data AudioPart
-  = Only Part -- ^ An audio file for a single notated part.
+  = Only    Part       -- ^ An audio file for a single notated part.
   | Without Instrument -- ^ The backing track for an instrument package.
   deriving (Eq, Ord, Show, Read)
 
 data SheetPart
   = Notation Part -- ^ For any instrument, the notation sheet music.
-  | Tab Part -- ^ For guitar and bass, the tablature sheet music.
+  | Tab      Part -- ^ For guitar and bass, the tablature sheet music.
   deriving (Eq, Ord, Show, Read)
 
 titleToPart :: String -> Maybe Part
@@ -114,12 +115,13 @@ audioPartToInstrument (Without i) = i
 
 data SkillLevel
   = SingleSkill Integer
-  | ManySkills [(Instrument, Integer)]
+  | ManySkills  [(Instrument, Integer)]
   deriving (Eq, Ord, Show, Read)
 
+-- | Can be an integer, or a dict of instrument names to integers.
 instance PropertyListItem SkillLevel where
   fromPropertyList pl
-    = do
+    =   do
       SingleSkill <$> fromPropertyList pl
     <|> do
       dict <- fromPropertyList pl
@@ -150,28 +152,27 @@ data Info = Info
 instance PropertyListItem Info where
   fromPropertyList pl = do
     dict <- fromPropertyList pl
-    album <- fromLookup "album" dict
-    artist <- fromLookup "artist" dict
-    bpm <- fromLookup "bpm" dict
-    copyright <- fromLookup "copyright" dict
+    album        <- fromLookup "album"        dict
+    artist       <- fromLookup "artist"       dict
+    bpm          <- fromLookup "bpm"          dict
+    copyright    <- fromLookup "copyright"    dict
     countInBeats <- fromLookup "countInBeats" dict
-    courtesyOf <- fromLookup "courtesyOf" dict
-    demo <- fromLookup "demo" dict
-    explicit <- fromLookup "explicit" dict
-    genre <- fromLookup "genre" dict
-    instrument <- fromLookup "instrument" dict
-    publishedBy <- fromLookup "publishedBy" dict
-    skillLevel <- fromLookup "skillLevel" dict
-    sku <- fromLookup "sku" dict
-    slow <- fromLookup "slow" dict
-    title <- fromLookup "title" dict
-    version <- fromLookup "version" dict
-    writtenBy <- fromLookup "writtenBy" dict
+    courtesyOf   <- fromLookup "courtesyOf"   dict
+    demo         <- fromLookup "demo"         dict
+    explicit     <- fromLookup "explicit"     dict
+    genre        <- fromLookup "genre"        dict
+    instrument   <- fromLookup "instrument"   dict
+    publishedBy  <- fromLookup "publishedBy"  dict
+    skillLevel   <- fromLookup "skillLevel"   dict
+    sku          <- fromLookup "sku"          dict
+    slow         <- fromLookup "slow"         dict
+    title        <- fromLookup "title"        dict
+    version      <- fromLookup "version"      dict
+    writtenBy    <- fromLookup "writtenBy"    dict
     return Info{..}
 
 loadInfo :: FilePath -> IO (Maybe Info)
-loadInfo dir = fromPropertyList <$>
-  readXmlPropertyListFromFile (dir </> "info.plist")
+loadInfo dir = fromPropertyList <$> readPropertyList (dir </> "info.plist")
 
 data Track = Track
   { trackClass          :: String
@@ -184,16 +185,15 @@ data Track = Track
 instance PropertyListItem Track where
   fromPropertyList pl = do
     dict <- fromPropertyList pl
-    trackClass <- fromLookup "class" dict
-    identifier <- fromLookup "identifier" dict
-    let scoreSystemHeight   = fromLookup "scoreSystemHeight" dict
+    trackClass             <- fromLookup "class"               dict
+    identifier             <- fromLookup "identifier"          dict
+    let scoreSystemHeight   = fromLookup "scoreSystemHeight"   dict
         scoreSystemInterval = fromLookup "scoreSystemInterval" dict
-        trackTitle          = fromLookup "title" dict
+        trackTitle          = fromLookup "title"               dict
     return Track{..}
 
 loadTracks :: FilePath -> IO (Maybe [Track])
-loadTracks dir = fromPropertyList <$>
-  readXmlPropertyListFromFile (dir </> "tracks.plist")
+loadTracks dir = fromPropertyList <$> readPropertyList (dir </> "tracks.plist")
 
 -- | Tries to find the top-level Jammit library directory on Windows or
 -- Mac OS X.
