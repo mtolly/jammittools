@@ -12,13 +12,15 @@ module Sound.Jammit.Base
 , titleToAudioPart
 , partToInstrument
 , audioPartToInstrument
-, Info(..)
-, Track(..)
+, Info(..), loadInfo
+, Track(..), loadTracks
 , SkillLevel(..)
-, loadInfo
-, loadTracks
 , findJammitDir
 , songSubdirs
+, Beat(..), loadBeats, loadGhost
+, Section(..), loadSections
+, findNotation, findTab, findAudio
+, sheetWidth, sheetHeight
 ) where
 
 #if !MIN_VERSION_base(4,8,0)
@@ -228,3 +230,82 @@ songSubdirs dir = do
   let here = [dir | isSong]
   subdirs <- lsAbsolute dir >>= filterM Dir.doesDirectoryExist
   (here ++) . concat <$> mapM songSubdirs subdirs
+
+data Beat = Beat
+  { isDownbeat  :: Bool
+  , isGhostBeat :: Bool
+  , position    :: Double
+  } deriving (Eq, Ord, Show, Read)
+
+instance PropertyListItem Beat where
+  fromPropertyList pl = do
+    dict <- fromPropertyList pl
+    isDownbeat  <- fromLookup "isDownbeat"  dict
+    isGhostBeat <- fromLookup "isGhostBeat" dict
+    position    <- fromLookup "position"    dict
+    return Beat{..}
+
+loadBeats :: FilePath -> IO (Maybe [Beat])
+loadBeats dir = fromPropertyList <$> readPropertyList (dir </> "beats.plist")
+
+loadGhost :: FilePath -> IO (Maybe [Beat])
+loadGhost dir = fromPropertyList <$> readPropertyList (dir </> "ghost.plist")
+
+data Section = Section
+  { sectionBeat   :: Integer
+  , sectionNumber :: Integer
+  , sectionType   :: Integer
+  } deriving (Eq, Ord, Show, Read)
+
+instance PropertyListItem Section where
+  fromPropertyList pl = do
+    dict <- fromPropertyList pl
+    sectionBeat   <- fromLookup "beat"   dict
+    sectionNumber <- fromLookup "number" dict
+    sectionType   <- fromLookup "type"   dict
+    return Section{..}
+
+loadSections :: FilePath -> IO (Maybe [Section])
+loadSections dir = fromPropertyList <$> readPropertyList (dir </> "sections.plist")
+
+{-
+Known section types
+=== in Erotomania ===
+0 pre-song
+1 intro
+2 verse
+4 chorus
+7 outro
+9 post-song
+13 b-section
+17 interlude
+23 c-section
+25 guitar solo
+36 transition
+-}
+
+findImages :: String -> Track -> FilePath -> IO [FilePath]
+findImages suffix trk dir = do
+  files <- Dir.getDirectoryContents dir
+  let image i = identifier trk ++ "_" ++ suffix ++ "_" ++ showTwo i
+      showTwo i = if i < 10 then '0' : show i else show i
+  return
+    [ dir </> file
+    | file <- map image ([0..99] :: [Int])
+    , file `elem` files
+    ]
+
+findNotation, findTab :: Track -> FilePath -> IO [FilePath]
+findNotation = findImages "jcfn"
+findTab      = findImages "jcft"
+
+findAudio :: Track -> FilePath -> IO (Maybe FilePath)
+findAudio trk dir = let
+  file = dir </> identifier trk ++ "_jcfx"
+  in do
+    b <- Dir.doesFileExist file
+    return $ guard b >> Just file
+
+sheetWidth, sheetHeight :: (Num a) => a
+sheetWidth  = 724
+sheetHeight = 1024

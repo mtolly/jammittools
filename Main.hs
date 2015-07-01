@@ -127,7 +127,7 @@ main = do
 
 getPageLines :: Integer -> Args -> Int
 getPageLines systemHeight args = let
-  pageHeight   = 724 / 8.5 * 11 :: Double
+  pageHeight   = sheetWidth / 8.5 * 11 :: Double
   defaultLines = round $ pageHeight / fromIntegral systemHeight
   in max 1 $ fromMaybe defaultLines $ pageLines args
 
