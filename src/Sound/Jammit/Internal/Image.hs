@@ -90,12 +90,21 @@ vertConcat imgs = P.generateImage f w h where
     else go is x $ y - P.imageHeight i
 
 vertSplit :: Int -> P.Image P.PixelRGBA8 -> [P.Image P.PixelRGBA8]
-vertSplit h img = map f $ takeWhile (< P.imageHeight img) [0, h ..] where
-  f yoff = P.generateImage
-    (g yoff)
-    (P.imageWidth img)
-    (min h $ P.imageHeight img - yoff)
-  g yoff x y = P.pixelAt img x $ y + yoff
+vertSplit h img = if P.imageHeight img <= h
+  then [img]
+  else let
+    chunkSize = P.pixelBaseIndex img 0 h
+    first = P.Image
+      { P.imageWidth  = P.imageWidth img
+      , P.imageHeight = h
+      , P.imageData   = V.take chunkSize $ P.imageData img
+      }
+    rest = P.Image
+      { P.imageWidth  = P.imageWidth img
+      , P.imageHeight = P.imageHeight img - h
+      , P.imageData   = V.drop chunkSize $ P.imageData img
+      }
+    in first : vertSplit h rest
 
 imagePage :: PDF.JpegFile -> PDF.PDF ()
 imagePage jpeg = do
