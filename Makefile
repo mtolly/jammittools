@@ -4,30 +4,30 @@ program := jammittools
 release := $(shell release/version)
 
 .PHONY: all osx linux win32
-all: release/${release}-osx-x64.zip release/${release}-linux-x86.tar.gz release/${release}-win32-x86.zip
+all: osx linux win32
 osx: release/${release}-osx-x64.zip
-linux: release/${release}-linux-x86.tar.gz
+linux: release/${release}-linux-x64.tar.gz
 win32: release/${release}-win32-x86.zip
 
 release/${release}-osx-x64.zip:
-	rm -rf dist/
-	release/build
-	cp dist/build/${program}/${program} ${program}
-	zip $@ ${program} README.md LICENSE
-	rm ${program}
+	stack setup
+	stack build
+	cp .stack-work/install/x86_64-osx/*/*/bin/jammittools jammittools
+	strip jammittools
+	zip $@ jammittools README.md LICENSE
+	rm jammittools
 
-release/${release}-linux-x86.tar.gz:
-	rm -rf dist/
-	vagrant up
-	vagrant ssh -c "cd /vagrant; release/build"
-	cp dist/build/${program}/${program} ${program}
-	tar -cvzf $@ ${program} README.md LICENSE
-	rm ${program}
+release/${release}-linux-x64.tar.gz:
+	vagrant up linux
+	vagrant ssh linux -c "cd /vagrant && stack setup && stack build"
+	cp .stack-work/install/x86_64-linux/*/*/bin/jammittools jammittools
+	vagrant ssh linux -c "cd /vagrant && strip jammittools"
+	tar -cvzf $@ jammittools README.md LICENSE
+	rm jammittools
 
 release/${release}-win32-x86.zip:
-	rm -rf dist/
-	vagrant up
-	vagrant ssh -c "cd /vagrant; release/build-wine"
-	cp dist/build/${program}/${program}.exe ${program}.exe
-	zip $@ ${program}.exe README.md LICENSE
-	rm ${program}.exe
+	vagrant up wine
+	vagrant ssh wine -c "cd /vagrant && wine stack setup && wine stack build"
+	cp .stack-work/install/i386-windows/*/*/bin/jammittools.exe jammittools.exe
+	zip $@ jammittools.exe README.md LICENSE
+	rm jammittools.exe
