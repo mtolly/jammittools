@@ -4,6 +4,10 @@
 # Sets up boxes for both Linux and Windows (Wine).
 Vagrant.configure(2) do |config|
   config.vm.box = 'boxcutter/ubuntu1504'
+  config.vm.provider :virtualbox do |vb|
+    vb.customize ["modifyvm", :id, "--memory", "2048"]
+    vb.customize ["modifyvm", :id, "--cpus", "2"]
+  end
   config.vm.define 'linux' do |linux|
     linux.vm.provision 'shell', inline: <<-SHELL
       wget -q -O- https://s3.amazonaws.com/download.fpcomplete.com/ubuntu/fpco.key | apt-key add -
