@@ -29,6 +29,7 @@ import Control.Applicative ((<$>))
 import Control.Applicative ((<|>))
 import Control.Monad (filterM, guard, forM)
 import Data.Char (toLower)
+import Data.Maybe (fromMaybe)
 import System.Environment (lookupEnv)
 import qualified Data.Map as Map
 import qualified System.Directory as Dir
@@ -240,9 +241,9 @@ data Beat = Beat
 instance PropertyListItem Beat where
   fromPropertyList pl = do
     dict <- fromPropertyList pl
-    isDownbeat  <- fromLookup "isDownbeat"  dict
-    isGhostBeat <- fromLookup "isGhostBeat" dict
-    position    <- fromLookup "position"    dict
+    let isDownbeat  = fromMaybe False $ fromLookup "isDownbeat"  dict
+        isGhostBeat = fromMaybe False $ fromLookup "isGhostBeat" dict
+    position       <-                   fromLookup "position"    dict
     return Beat{..}
 
 loadBeats :: FilePath -> IO (Maybe [Beat])
