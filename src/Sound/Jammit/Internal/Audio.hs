@@ -2,30 +2,32 @@
 AIFC\/IMA audio decoding functions in this module are ported from
 http://sed.free.fr/aifc2wav.html
 -}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE OverloadedStrings        #-}
 module Sound.Jammit.Internal.Audio
 ( readIMA
 , writeWAV
 , clamp
 ) where
 
-import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
-import qualified Data.Vector.Storable as V
-import Data.Int (Int16, Int32)
-import Data.Word (Word16, Word32)
-import Control.Monad.IO.Class (liftIO)
-import qualified Data.ByteString as B
-import Data.ByteString.Char8 () -- for IsString instance
-import qualified System.IO as IO
-import GHC.IO.Handle (HandlePosn(..))
-import Data.Bits (shiftL, shiftR, (.&.))
-import Control.Monad (unless, forM, liftM2)
-import Control.Monad.ST (runST)
-import Data.STRef (newSTRef, readSTRef, modifySTRef)
+import           Control.Monad                (liftM2, unless)
+import           Control.Monad.IO.Class       (liftIO)
+import qualified Data.ByteString              as B
+import           Data.ByteString.Char8        () -- for IsString instance
+import qualified Data.ByteString.Unsafe       as B
+import qualified Data.Conduit                 as C
+import qualified Data.Conduit.List            as CL
+import qualified Data.Vector.Storable         as V
+import           Foreign                      (Int16, Int32, Ptr, Word16,
+                                               Word32, Word8, castPtr,
+                                               finalizerFree, mallocBytes,
+                                               newForeignPtr, shiftL, shiftR)
+import           GHC.IO.Handle                (HandlePosn (..))
+import qualified System.IO                    as IO
+import           System.IO.Unsafe             (unsafePerformIO)
 
-import qualified Data.Conduit.Audio as A
-import Control.Monad.Trans.Resource (MonadResource)
+import           Control.Monad.Trans.Resource (MonadResource)
+import qualified Data.Conduit.Audio           as A
 
 parseChunk :: IO.Handle -> IO (B.ByteString, (HandlePosn, HandlePosn))
 parseChunk h = do
@@ -97,57 +99,22 @@ readIMA fp = do
               go 0 0 frames
   return $ A.AudioSource src 44100 2 $ fromIntegral frames
 
+foreign import ccall unsafe "decode_chunk"
+  c_decodeChunk :: Ptr Word8 -> Ptr Word8 -> Int16 -> IO Int16
+
 decodeChunk :: (Int16, B.ByteString) -> (Int16, V.Vector Int16)
-decodeChunk (initPredictor, chunk) = runST $ do
-  predictor <- newSTRef initPredictor
-  stepIndex <- newSTRef (fromIntegral (B.index chunk 1) .&. 127 :: Int16)
-  let step = fmap (\si -> stepTable V.! fromIntegral si) $ readSTRef stepIndex
-  v <- fmap (V.fromList . concat) $ forM (B.unpack $ B.drop 2 chunk) $ \d -> do
-    let hnb = fromIntegral $ d `shiftR` 4 :: Int32
-        lnb = fromIntegral $ d .&. 15     :: Int32
-    forM [lnb, hnb] $ \nb -> do
-      thisStep <- step
-      let sign  = nb .&. 8
-          diff = sum
-            [ thisStep `shiftR` 3
-            , if nb .&. 4 /= 0 then thisStep            else 0
-            , if nb .&. 2 /= 0 then thisStep `shiftR` 1 else 0
-            , if nb .&. 1 /= 0 then thisStep `shiftR` 2 else 0
-            ]
-      modifySTRef predictor $ \old -> let
-        op = if sign /= 0 then (-) else (+)
-        new = fromIntegral old `op` fromIntegral diff :: Int32
-        in fromIntegral $ clamp (-32768, 32767) new
-      modifySTRef stepIndex $ \old ->
-        clamp (0, 88) $ old + (indexTable V.! fromIntegral nb)
-      readSTRef predictor
-  finalPredictor <- readSTRef predictor
-  return (finalPredictor, v)
+decodeChunk (initPredictor, chunk) = unsafePerformIO $ do
+  B.unsafeUseAsCString chunk $ \cstr -> do
+    p <- mallocBytes 128
+    lastPredictor <- c_decodeChunk (castPtr cstr) p initPredictor
+    fp <- newForeignPtr finalizerFree $ castPtr p
+    return (lastPredictor, V.unsafeFromForeignPtr0 fp 64)
 
 clamp :: (Ord a) => (a, a) -> a -> a
 clamp (vmin, vmax) v
   | v < vmin  = vmin
   | v > vmax  = vmax
   | otherwise = v
-
-indexTable :: V.Vector Int16
-indexTable = V.fromList
-  [ -1, -1, -1, -1, 2, 4, 6, 8
-  , -1, -1, -1, -1, 2, 4, 6, 8
-  ]
-
-stepTable :: V.Vector Int16
-stepTable = V.fromList
-  [ 7, 8, 9, 10, 11, 12, 13, 14, 16, 17
-  , 19, 21, 23, 25, 28, 31, 34, 37, 41, 45
-  , 50, 55, 60, 66, 73, 80, 88, 97, 107, 118
-  , 130, 143, 157, 173, 190, 209, 230, 253, 279, 307
-  , 337, 371, 408, 449, 494, 544, 598, 658, 724, 796
-  , 876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066
-  , 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358
-  , 5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899
-  , 15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
-  ]
 
 writeWAV :: (MonadResource m) => FilePath -> A.AudioSource m Int16 -> m ()
 writeWAV fp (A.AudioSource s r c _) = s C.$$ C.bracketP
