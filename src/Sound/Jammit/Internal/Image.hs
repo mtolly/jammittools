@@ -4,7 +4,7 @@ module Sound.Jammit.Internal.Image
 ) where
 
 import qualified Codec.Picture as P
-import Codec.Picture.Types (convertImage, dropTransparency)
+import Codec.Picture.Types (convertImage, dropAlphaLayer, promoteImage)
 import Control.Monad (forM_, replicateM)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Class (lift)
@@ -13,23 +13,40 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Conduit as C
 import Data.Maybe (catMaybes)
 import qualified Data.Vector.Storable as V
+import Data.Bits (shiftR)
 
 import Sound.Jammit.Internal.TempIO
 
-loadPNG :: FilePath -> IO (P.Image P.PixelRGBA8)
+loadPNG :: FilePath -> IO (P.Image P.PixelRGB8)
 loadPNG fp = do
   Right dyn <- P.readImage fp
-  case dyn of
-    P.ImageRGBA8 i -> return i
-    _              -> error "loadPNG: pixels aren't RGBA8"
+  return $ anyToRGB8 dyn
+
+anyToRGB8 :: P.DynamicImage -> P.Image P.PixelRGB8
+anyToRGB8 dyn = case dyn of
+  P.ImageY8 i -> promoteImage i
+  P.ImageY16 i -> anyToRGB8 $ P.ImageRGB16 $ promoteImage i
+  P.ImageYF i -> anyToRGB8 $ P.ImageRGBF $ promoteImage i
+  P.ImageYA8 i -> promoteImage i
+  P.ImageYA16 i -> anyToRGB8 $ P.ImageRGBA16 $ promoteImage i
+  P.ImageRGB8 i -> i
+  P.ImageRGB16 i -> P.pixelMap (\(P.PixelRGB16 r g b) -> P.PixelRGB8 (f r) (f g) (f b)) i
+    where f w16 = fromIntegral $ w16 `shiftR` 8
+  P.ImageRGBF i -> P.pixelMap (\(P.PixelRGBF r g b) -> P.PixelRGB8 (f r) (f g) (f b)) i
+    where f w16 = floor $ min 0xFF $ w16 * 0x100
+  P.ImageRGBA8 i -> dropAlphaLayer i
+  P.ImageRGBA16 i -> anyToRGB8 $ P.ImageRGB16 $ dropAlphaLayer i
+  P.ImageYCbCr8 i -> convertImage i
+  P.ImageCMYK8 i -> convertImage i
+  P.ImageCMYK16 i -> anyToRGB8 $ P.ImageRGB16 $ convertImage i
 
 pngChunks :: (MonadIO m) =>
-  Int -> [FilePath] -> C.Source m (P.Image P.PixelRGBA8)
+  Int -> [FilePath] -> C.Source m (P.Image P.PixelRGB8)
 pngChunks h fps = let
-  raw :: (MonadIO m) => C.Source m (P.Image P.PixelRGBA8)
+  raw :: (MonadIO m) => C.Source m (P.Image P.PixelRGB8)
   raw = mapM_ (\fp -> liftIO (loadPNG fp) >>= C.yield) fps
   chunk :: (Monad m) =>
-    C.Conduit (P.Image P.PixelRGBA8) m (P.Image P.PixelRGBA8)
+    C.Conduit (P.Image P.PixelRGB8) m (P.Image P.PixelRGB8)
   chunk = C.await >>= \x -> case x of
     Nothing   -> return ()
     Just page -> case span (\c -> P.imageHeight c == h) $ vertSplit h page of
@@ -40,12 +57,12 @@ pngChunks h fps = let
   in raw C.=$= chunk
 
 chunksToPages :: (Monad m) =>
-  Int -> C.Conduit [P.Image P.PixelRGBA8] m (P.Image P.PixelRGBA8)
+  Int -> C.Conduit [P.Image P.PixelRGB8] m (P.Image P.PixelRGB8)
 chunksToPages n = fmap catMaybes (replicateM n C.await) >>= \systems -> case systems of
   [] -> return ()
   _  -> C.yield (vertConcat $ concat systems) >> chunksToPages n
 
-sinkJPEG :: C.Sink (P.Image P.PixelRGBA8) TempIO [FilePath]
+sinkJPEG :: C.Sink (P.Image P.PixelRGB8) TempIO [FilePath]
 sinkJPEG = go [] where
   go jpegs = C.await >>= \x -> case x of
     Nothing -> return jpegs
@@ -62,11 +79,10 @@ partsToPages parts n = let
   sources = map (\(imgs, h) -> pngChunks (fromIntegral h) imgs) parts
   in C.sequenceSources sources C.$$ chunksToPages n C.=$= sinkJPEG
 
-saveJPEG :: FilePath -> P.Image P.PixelRGBA8 -> IO ()
-saveJPEG fp img = BL.writeFile fp $ P.encodeJpegAtQuality 100 $
-  convertImage $ P.pixelMap dropTransparency img
+saveJPEG :: FilePath -> P.Image P.PixelRGB8 -> IO ()
+saveJPEG fp img = BL.writeFile fp $ P.encodeJpegAtQuality 100 $ convertImage img
 
-vertConcat :: [P.Image P.PixelRGBA8] -> P.Image P.PixelRGBA8
+vertConcat :: [P.Image P.PixelRGB8] -> P.Image P.PixelRGB8
 vertConcat [] = P.Image 0 0 V.empty
 -- efficient version: all images have same width, just concat vectors
 vertConcat allimgs@(img : imgs)
@@ -81,7 +97,7 @@ vertConcat imgs = P.generateImage f w h where
   w = foldr max 0 $ map P.imageWidth imgs
   h = sum $ map P.imageHeight imgs
   f = go imgs
-  empty = P.PixelRGBA8 0 0 0 0
+  empty = P.PixelRGB8 0 0 0
   go [] _ _ = empty
   go (i : is) x y = if y < P.imageHeight i
     then if x < P.imageWidth i
@@ -89,7 +105,7 @@ vertConcat imgs = P.generateImage f w h where
       else empty
     else go is x $ y - P.imageHeight i
 
-vertSplit :: Int -> P.Image P.PixelRGBA8 -> [P.Image P.PixelRGBA8]
+vertSplit :: Int -> P.Image P.PixelRGB8 -> [P.Image P.PixelRGB8]
 vertSplit h img = if P.imageHeight img <= h
   then [img]
   else let
