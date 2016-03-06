@@ -125,7 +125,7 @@ vertSplit h img = if P.imageHeight img <= h
 imagePage :: PDF.JpegFile -> PDF.PDF ()
 imagePage jpeg = do
   let (w, h) = PDF.jpegBounds jpeg
-  page <- PDF.addPage $ Just $ PDF.PDFRect 0 0 (round w) (round h)
+  page <- PDF.addPage $ Just $ PDF.PDFRect 0 0 w h
   ref <- PDF.createPDFJpeg jpeg
   PDF.drawWithPage page $ PDF.drawXObject ref
 

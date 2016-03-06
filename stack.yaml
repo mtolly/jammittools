@@ -2,7 +2,5 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-- boxes-0.1.4
-- conduit-audio-0.2
-- HPDF-1.4.7
-resolver: lts-3.0
+- conduit-audio-0.2.0.1
+resolver: lts-5.5
