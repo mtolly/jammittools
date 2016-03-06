@@ -4,7 +4,7 @@ module Sound.Jammit.Internal.Image
 ) where
 
 import qualified Codec.Picture as P
-import Codec.Picture.Types (convertImage, dropAlphaLayer, promoteImage)
+import Codec.Picture.Types (convertImage)
 import Control.Monad (forM_, replicateM)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Class (lift)
@@ -13,32 +13,13 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Conduit as C
 import Data.Maybe (catMaybes)
 import qualified Data.Vector.Storable as V
-import Data.Bits (shiftR)
 
 import Sound.Jammit.Internal.TempIO
 
 loadPNG :: FilePath -> IO (P.Image P.PixelRGB8)
 loadPNG fp = do
   Right dyn <- P.readImage fp
-  return $ anyToRGB8 dyn
-
-anyToRGB8 :: P.DynamicImage -> P.Image P.PixelRGB8
-anyToRGB8 dyn = case dyn of
-  P.ImageY8 i -> promoteImage i
-  P.ImageY16 i -> anyToRGB8 $ P.ImageRGB16 $ promoteImage i
-  P.ImageYF i -> anyToRGB8 $ P.ImageRGBF $ promoteImage i
-  P.ImageYA8 i -> promoteImage i
-  P.ImageYA16 i -> anyToRGB8 $ P.ImageRGBA16 $ promoteImage i
-  P.ImageRGB8 i -> i
-  P.ImageRGB16 i -> P.pixelMap (\(P.PixelRGB16 r g b) -> P.PixelRGB8 (f r) (f g) (f b)) i
-    where f w16 = fromIntegral $ w16 `shiftR` 8
-  P.ImageRGBF i -> P.pixelMap (\(P.PixelRGBF r g b) -> P.PixelRGB8 (f r) (f g) (f b)) i
-    where f w16 = floor $ min 0xFF $ w16 * 0x100
-  P.ImageRGBA8 i -> dropAlphaLayer i
-  P.ImageRGBA16 i -> anyToRGB8 $ P.ImageRGB16 $ dropAlphaLayer i
-  P.ImageYCbCr8 i -> convertImage i
-  P.ImageCMYK8 i -> convertImage i
-  P.ImageCMYK16 i -> anyToRGB8 $ P.ImageRGB16 $ convertImage i
+  return $ P.convertRGB8 dyn
 
 pngChunks :: (MonadIO m) =>
   Int -> [FilePath] -> C.Source m (P.Image P.PixelRGB8)
