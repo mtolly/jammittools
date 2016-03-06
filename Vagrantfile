@@ -23,8 +23,8 @@ Vagrant.configure(2) do |config|
       apt-get install -y wine
     SHELL
     wine.vm.provision "shell", privileged: false, inline: <<-SHELL
-      wget https://github.com/commercialhaskell/stack/releases/download/v0.1.1.0/stack-0.1.1.0-i386-windows.zip
-      unzip stack-0.1.1.0-i386-windows.zip
+      wget https://github.com/commercialhaskell/stack/releases/download/v1.0.4/stack-1.0.4-windows-i386.zip
+      unzip stack-1.0.4-windows-i386.zip
       wine wineboot
       mv stack.exe /vagrant/stack.exe
     SHELL

@@ -3,3 +3,4 @@ dist/
 cabal.sandbox.config
 .DS_Store
 .vagrant/
+stack.exe
