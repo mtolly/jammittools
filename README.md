@@ -6,7 +6,7 @@ A command-line tool for exporting sheet music and audio from the Windows/Mac app
 It should go without saying, but please do not distribute content from songs you have purchased --
 it is for your use only!
 
-Download the latest Windows/Mac binaries from the [releases page](https://github.com/mtolly/jammittools/releases).
+Download the latest Windows/Mac/Linux binaries from the [releases page](https://github.com/mtolly/jammittools/releases).
 
 [Jammit]: https://www.jammit.com/
 
@@ -33,6 +33,10 @@ Download the latest Windows/Mac binaries from the [releases page](https://github
     # Do a "dry run" of audio extraction, which checks if the parts exist
     # but does not do any conversion. Exits with a non-zero code if any
     # part does not exist.
+
+    jammittools -b dir
+    # Full library backup: runs -x for each song in your library.
+    # Each song is extracted to its own folder within "dir".
 
 Other lesser-used flags:
 

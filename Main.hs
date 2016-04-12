@@ -14,7 +14,8 @@ import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
 import System.Exit (exitFailure)
 
-import System.FilePath ((</>))
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath ((</>), makeValid)
 import Text.PrettyPrint.Boxes
   (text, vcat, left, render, hsep, top, (/+/))
 
@@ -52,6 +53,50 @@ main = do
     printUsage
     exitFailure
   let args = foldr ($) defaultArgs opts
+      exportBoth matches dout = do
+        let sheets = getSheetParts matches
+            audios = getAudioParts matches
+            backingOrder = [Drums, Guitar, Keyboard, Bass, Vocal]
+            isGuitar p = elem (partToInstrument p) [Guitar, Bass]
+            (gtrs, nongtrs) = partition isGuitar [minBound .. maxBound]
+            chosenBacking = listToMaybe $ flip mapMaybe backingOrder $ \i ->
+              case getOneResult (Without i) audios of
+                Left  _  -> Nothing
+                Right fp -> Just (i, fp)
+        forM_ gtrs $ \p ->
+          case (getOneResult (Notation p) sheets, getOneResult (Tab p) sheets) of
+            (Right note, Right tab) -> let
+              parts = [note, tab]
+              systemHeight = sum $ map snd parts
+              fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
+              in do
+                putStrLn $ "Exporting notation & tab for " ++ show p
+                runSheet [note, tab] (getPageLines systemHeight args) fout
+            _ -> return ()
+        forM_ nongtrs $ \p ->
+          case getOneResult (Notation p) sheets of
+            Left  _    -> return ()
+            Right note -> let
+              fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
+              in do
+                putStrLn $ "Exporting notation for " ++ show p
+                runSheet [note] (getPageLines (snd note) args) fout
+        forM_ [minBound .. maxBound] $ \p ->
+          case getOneResult (Only p) audios of
+            Left  _  -> return ()
+            Right fp -> let
+              fout = dout </> drop 4 (map toLower (show p) ++ ".wav")
+              in do
+                putStrLn $ "Exporting audio for " ++ show p
+                runAudio [fp] [] fout
+        case chosenBacking of
+          Nothing            -> return ()
+          Just (inst, fback) -> let
+            others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
+            fout = dout </> "backing.wav"
+            in do
+              putStrLn "Exporting backing audio (could take a while)"
+              runAudio [fback] others fout
   case function args of
     PrintUsage -> printUsage
     ShowDatabase -> do
@@ -81,49 +126,17 @@ main = do
           in runSheet parts (getPageLines systemHeight args) fout
     ExportAll dout -> do
       matches <- searchResultsChecked args
-      let sheets = getSheetParts matches
-          audios = getAudioParts matches
-          backingOrder = [Drums, Guitar, Keyboard, Bass, Vocal]
-          isGuitar p = elem (partToInstrument p) [Guitar, Bass]
-          (gtrs, nongtrs) = partition isGuitar [minBound .. maxBound]
-          chosenBacking = listToMaybe $ flip mapMaybe backingOrder $ \i ->
-            case getOneResult (Without i) audios of
-              Left  _  -> Nothing
-              Right fp -> Just (i, fp)
-      forM_ gtrs $ \p ->
-        case (getOneResult (Notation p) sheets, getOneResult (Tab p) sheets) of
-          (Right note, Right tab) -> let
-            parts = [note, tab]
-            systemHeight = sum $ map snd parts
-            fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
-            in do
-              putStrLn $ "Exporting notation & tab for " ++ show p
-              runSheet [note, tab] (getPageLines systemHeight args) fout
-          _ -> return ()
-      forM_ nongtrs $ \p ->
-        case getOneResult (Notation p) sheets of
-          Left  _    -> return ()
-          Right note -> let
-            fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
-            in do
-              putStrLn $ "Exporting notation for " ++ show p
-              runSheet [note] (getPageLines (snd note) args) fout
-      forM_ [minBound .. maxBound] $ \p ->
-        case getOneResult (Only p) audios of
-          Left  _  -> return ()
-          Right fp -> let
-            fout = dout </> drop 4 (map toLower (show p) ++ ".wav")
-            in do
-              putStrLn $ "Exporting audio for " ++ show p
-              runAudio [fp] [] fout
-      case chosenBacking of
-        Nothing            -> return ()
-        Just (inst, fback) -> let
-          others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
-          fout = dout </> "backing.wav"
-          in do
-            putStrLn "Exporting backing audio (could take a while)"
-            runAudio [fback] others fout
+      exportBoth matches dout
+    ExportLib dout -> do
+      matches <- searchResults args
+      let titleArtists = nub [ (title info, artist info) | (_, info, _) <- matches ]
+      forM_ titleArtists $ \ta@(t, a) -> do
+        putStrLn $ "# SONG: " ++ a ++ " - " ++ t
+        let entries = filter (\(_, info, _) -> ta == (title info, artist info)) matches
+            songDir = dout </> makeValid (removeSlashes $ a ++ " - " ++ t)
+            removeSlashes = map $ \c -> case c of '/' -> '_'; '\\' -> '_'; _ -> c
+        createDirectoryIfMissing False songDir
+        exportBoth entries songDir
 
 getPageLines :: Integer -> Args -> Int
 getPageLines systemHeight args = let
@@ -236,7 +249,10 @@ argOpts =
     "function: export audio"
   , Opt.Option ['x'] ["export"]
     (Opt.ReqArg (\s a -> a { function = ExportAll s }) "dir")
-    "function: export all to dir"
+    "function: export song to dir"
+  , Opt.Option ['b'] ["backup"]
+    (Opt.ReqArg (\s a -> a { function = ExportLib s }) "dir")
+    "function: export library to dir"
   , Opt.Option ['c'] ["check"]
     (Opt.NoArg $ \a -> a { function = CheckPresence })
     "function: check presence of audio parts"
@@ -257,6 +273,7 @@ data Function
   | ExportSheet FilePath
   | ExportAudio FilePath
   | ExportAll   FilePath
+  | ExportLib   FilePath
   | CheckPresence
   deriving (Eq, Ord, Show, Read)
 
