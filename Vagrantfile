@@ -3,7 +3,7 @@
 
 # Sets up boxes for both Linux and Windows (Wine).
 Vagrant.configure(2) do |config|
-  config.vm.box = 'boxcutter/ubuntu1504'
+  config.vm.box = 'ubuntu/xenial32'
   config.vm.provider :virtualbox do |vb|
     vb.customize ["modifyvm", :id, "--memory", "2048"]
     vb.customize ["modifyvm", :id, "--cpus", "2"]
@@ -23,8 +23,8 @@ Vagrant.configure(2) do |config|
       apt-get install -y wine
     SHELL
     wine.vm.provision "shell", privileged: false, inline: <<-SHELL
-      wget https://github.com/commercialhaskell/stack/releases/download/v1.0.4/stack-1.0.4-windows-i386.zip
-      unzip stack-1.0.4-windows-i386.zip
+      wget https://github.com/commercialhaskell/stack/releases/download/v1.1.2/stack-1.1.2-windows-i386.zip
+      unzip stack-1.1.2-windows-i386.zip
       wine wineboot
       mv stack.exe /vagrant/stack.exe
     SHELL

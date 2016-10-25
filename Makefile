@@ -29,5 +29,5 @@ release/${release}-win32-x86.zip:
 	vagrant up wine
 	vagrant ssh wine -c "cd /vagrant && wine stack setup && wine stack build"
 	cp .stack-work/install/*/bin/jammittools.exe jammittools.exe
-	zip $@ jammittools.exe README.md LICENSE
+	zip $@ jammittools.exe README.md LICENSE easy-export.bat
 	rm jammittools.exe
