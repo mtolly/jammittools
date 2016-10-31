@@ -2,15 +2,20 @@
 
 [![Available on Hackage](https://img.shields.io/hackage/v/jammittools.svg)](http://hackage.haskell.org/package/jammittools)
 
-A command-line tool for exporting sheet music and audio from the Windows/Mac app [Jammit].
-It should go without saying, but please do not distribute content from songs you have purchased --
-it is for your use only!
-
-Download the latest Windows/Mac/Linux binaries from the [releases page](https://github.com/mtolly/jammittools/releases).
+A command-line tool for exporting sheet music and audio from the (defunct) Windows/Mac app [Jammit].
+It should go without saying, but please do not distribute content from songs you have purchased—it is for your use only!
 
 [Jammit]: https://www.jammit.com/
 
-## Usage
+## Easy export instructions
+
+1. Download songs through the Windows or Mac Jammit app.
+
+2. Download `jammittools` from the [releases page](https://github.com/mtolly/jammittools/releases).
+
+3. Unzip somewhere, and run the included `easy-export` script. Song folders will start being extracted in that same folder.
+
+## Command-line instructions
 
     jammittools -?
     # Print usage info.
@@ -105,8 +110,8 @@ This uses the `-n` flag to mix many audio files in after inverting them.
 The `D` part is the backing track for the drums package. What this does is
 subtract the non-drums instrument parts from this backing track, leaving you
 with just the portion of the song that isn't present in any of the transcribed
-parts. If you use the `-x` option to export all parts of a song, this process
-will be done for you and placed in a file called `backing.wav`.
+parts. If you use the `-x` or `-b` options to export all parts of a song, this
+process will be done for you and placed in a file called `backing.wav`.
 
 The resulting file has a thin layer of noise, because all the audio used in
 Jammit is lossily encoded, which means the backing tracks are not quite perfect

@@ -14,7 +14,7 @@ release/${release}-osx-x64.zip:
 	stack build
 	cp .stack-work/install/x86_64-osx/*/*/bin/jammittools jammittools
 	strip jammittools
-	zip $@ jammittools README.md LICENSE
+	zip $@ jammittools README.md LICENSE easy-export.applescript
 	rm jammittools
 
 release/${release}-linux-x64.tar.gz:

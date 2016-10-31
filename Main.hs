@@ -8,7 +8,7 @@ import Control.Applicative ((<|>))
 import Control.Monad ((>=>), forM_, unless)
 import Data.Char (toLower)
 import Data.List (sort, nub, partition)
-import Data.Maybe (mapMaybe, fromMaybe, listToMaybe)
+import Data.Maybe (catMaybes, mapMaybe, fromMaybe, listToMaybe)
 import Data.Version (showVersion)
 import qualified System.Console.GetOpt as Opt
 import qualified System.Environment as Env
@@ -97,13 +97,12 @@ main = do
             in do
               putStrLn "Exporting backing audio (could take a while)"
               runAudio [fback] others fout
-        case matches of
+        clickTracks <- mapM loadBeats $ map (\(fp, _, _) -> fp) matches
+        case catMaybes clickTracks of
           [] -> return ()
-          (fp, _, _) : _ -> loadBeats fp >>= \mb -> case mb of
-            Nothing -> return ()
-            Just beats -> do
-              putStrLn "Exporting metronome click track"
-              writeMetronomeTrack (dout </> "click.wav") beats
+          beats : _ -> do
+            putStrLn "Exporting metronome click track"
+            writeMetronomeTrack (dout </> "click.wav") beats
   case function args of
     PrintUsage -> printUsage
     ShowDatabase -> do
@@ -117,16 +116,13 @@ main = do
         (_           , Left  err   ) -> error err
         (Right yaifcs, Right naifcs) -> runAudio yaifcs naifcs fout
     ExportClick fout -> do
-      matches <- searchResultsChecked args
-      case matches of
+      matches <- map (\(fp, _, _) -> fp) <$> searchResultsChecked args
+      clickTracks <- mapM loadBeats matches
+      case catMaybes clickTracks of
         [] -> do
-          putStrLn "No songs matched your search."
+          putStrLn $ "Couldn't load beats.plist from any of these folders: " ++ show matches
           exitFailure
-        (fp, _, _) : _ -> loadBeats fp >>= \mb -> case mb of
-          Nothing -> do
-            putStrLn $ "Couldn't load beats.plist from the folder: " ++ fp
-            exitFailure
-          Just beats -> writeMetronomeTrack fout beats
+        beats : _ -> writeMetronomeTrack fout beats
     CheckPresence -> do
       matches <- getAudioParts <$> searchResultsChecked args
       let f = mapM (`getOneResult` matches) . mapMaybe charToAudioPart

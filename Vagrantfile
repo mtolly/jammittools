@@ -3,7 +3,7 @@
 
 # Sets up boxes for both Linux and Windows (Wine).
 Vagrant.configure(2) do |config|
-  config.vm.box = 'ubuntu/xenial32'
+  config.vm.box = 'ubuntu/vervet32'
   config.vm.provider :virtualbox do |vb|
     vb.customize ["modifyvm", :id, "--memory", "2048"]
     vb.customize ["modifyvm", :id, "--cpus", "2"]
