@@ -11,10 +11,12 @@ module Sound.Jammit.Export
 , audioSource
 , runAudio
 , runSheet
+, metronomeTrack
+, writeMetronomeTrack
 ) where
 
 import Control.Applicative (liftA2)
-import Control.Monad (forM)
+import Control.Monad (forM, forever)
 import Data.Char (toLower)
 import Data.Int (Int16, Int32)
 import Data.List (isInfixOf, sort, isPrefixOf)
@@ -125,3 +127,22 @@ runSheet trks lns fout = runTempIO fout $ do
   pdf <- newTempFile "pages.pdf"
   liftIO $ jpegsToPDF jpegs pdf
   return pdf
+
+writeMetronomeTrack :: FilePath -> [Beat] -> IO ()
+writeMetronomeTrack fp beats = runResourceT $ writeWAV fp $ metronomeTrack beats
+
+metronomeTrack :: (Monad m) => [Beat] -> A.AudioSource m Int16
+metronomeTrack beats = let
+  samples = map (\b -> floor $ position b * 44100) beats
+  clicks = zipWith makeClick samples $ map Just (drop 1 samples) ++ repeat Nothing
+  makeClick f1 (Just f2) = A.takeStart (A.Frames $ f2 - f1) $ A.concatenate metronomeClick infiniteSilence
+  makeClick _  Nothing   = metronomeClick
+  silentBlock = A.silent (A.Frames A.chunkSize) 44100 2
+  zeroAudio = A.silent (A.Frames 0) 44100 2
+  infiniteSilence = A.AudioSource
+    { A.rate = 44100
+    , A.channels = 2
+    , A.frames = 0
+    , A.source = forever $ A.source silentBlock
+    }
+  in foldr A.concatenate zeroAudio clicks

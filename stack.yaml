@@ -3,4 +3,4 @@ packages:
 - '.'
 extra-deps:
 - conduit-audio-0.2.0.2
-resolver: nightly-2016-07-04
+resolver: lts-7.6

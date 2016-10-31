@@ -97,6 +97,13 @@ main = do
             in do
               putStrLn "Exporting backing audio (could take a while)"
               runAudio [fback] others fout
+        case matches of
+          [] -> return ()
+          (fp, _, _) : _ -> loadBeats fp >>= \mb -> case mb of
+            Nothing -> return ()
+            Just beats -> do
+              putStrLn "Exporting metronome click track"
+              writeMetronomeTrack (dout </> "click.wav") beats
   case function args of
     PrintUsage -> printUsage
     ShowDatabase -> do
@@ -109,6 +116,17 @@ main = do
         (Left  err   , _           ) -> error err
         (_           , Left  err   ) -> error err
         (Right yaifcs, Right naifcs) -> runAudio yaifcs naifcs fout
+    ExportClick fout -> do
+      matches <- searchResultsChecked args
+      case matches of
+        [] -> do
+          putStrLn "No songs matched your search."
+          exitFailure
+        (fp, _, _) : _ -> loadBeats fp >>= \mb -> case mb of
+          Nothing -> do
+            putStrLn $ "Couldn't load beats.plist from the folder: " ++ fp
+            exitFailure
+          Just beats -> writeMetronomeTrack fout beats
     CheckPresence -> do
       matches <- getAudioParts <$> searchResultsChecked args
       let f = mapM (`getOneResult` matches) . mapMaybe charToAudioPart
@@ -247,6 +265,9 @@ argOpts =
   , Opt.Option ['a'] ["audio"]
     (Opt.ReqArg (\s a -> a { function = ExportAudio s }) "file")
     "function: export audio"
+  , Opt.Option ['m'] ["metronome"]
+    (Opt.ReqArg (\s a -> a { function = ExportClick s }) "file")
+    "function: export metronome audio"
   , Opt.Option ['x'] ["export"]
     (Opt.ReqArg (\s a -> a { function = ExportAll s }) "dir")
     "function: export song to dir"
@@ -272,6 +293,7 @@ data Function
   | ShowDatabase
   | ExportSheet FilePath
   | ExportAudio FilePath
+  | ExportClick FilePath
   | ExportAll   FilePath
   | ExportLib   FilePath
   | CheckPresence
