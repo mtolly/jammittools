@@ -34,6 +34,9 @@ It should go without saying, but please do not distribute content from songs you
     # Exports a single audio file with a list of parts, mixed together.
     # See below for the syntax of instrument parts.
 
+    jammittools -t "My Song" -r "Some Artist" -m file.wav
+    # Exports the metronome click track for the song.
+
     jammittools -t "My Song" -r "Some Artist" -c -y <parts>
     # Do a "dry run" of audio extraction, which checks if the parts exist
     # but does not do any conversion. Exits with a non-zero code if any
