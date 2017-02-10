@@ -74,7 +74,8 @@ Instrument parts are given by this somewhat terse syntax:
 
     g - Guitar (1)
     r - Guitar 2
-    b - Bass
+    b - Bass (1)
+    a - Bass 2
     d - Drums (1)
     m - Drums 2
     k - Keyboard (1)
@@ -84,7 +85,7 @@ Instrument parts are given by this somewhat terse syntax:
     o - Organ
     v - Vocals (Lead)
     x - Vocals (Backing)
-    GRB - in sheet music, tab instead of notation
+    GRBA - in sheet music, tab instead of notation
     GBDKV - in audio, the backing track for an instrument
 
 So, for example, to make a backing track consisting of just drums and bass:
@@ -105,7 +106,7 @@ audio subtraction, where you take two audio files, invert one of them, and then
 mix them together.
 
 Let's say you own all 5 instruments for a song. You can access the "hidden"
-track with the following command:
+track with a command similar to the following:
 
     jammittools <search parameters> -a out.wav -y D -n grbkyvx
 

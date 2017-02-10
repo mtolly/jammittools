@@ -33,7 +33,7 @@ printUsage = do
   putStrLn ""
   putStrLn "Instrument parts:"
   putStr showCharPartMap
-  putStrLn "For sheet music, GRB are tab instead of notation."
+  putStrLn "For sheet music, GRBA are tab instead of notation."
   putStrLn "For audio, GBDKV are the backing tracks for each instrument."
   putStrLn ""
   putStrLn "Example usage:"
@@ -309,7 +309,8 @@ partToChar :: Part -> Char
 partToChar p = case p of
   PartGuitar1 -> 'g'
   PartGuitar2 -> 'r'
-  PartBass    -> 'b'
+  PartBass1   -> 'b'
+  PartBass2   -> 'a'
   PartDrums1  -> 'd'
   PartDrums2  -> 'm'
   PartKeys1   -> 'k'

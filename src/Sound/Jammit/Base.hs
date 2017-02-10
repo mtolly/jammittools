@@ -53,7 +53,8 @@ instance PropertyListItem Instrument where
 data Part
   = PartGuitar1 -- ^ Used for both Guitar and Guitar 1
   | PartGuitar2
-  | PartBass
+  | PartBass1 -- ^ Used for both Bass and Bass 1
+  | PartBass2 -- ^ Rarely used. Seen in \"The Fish (Schindleria Praematurus)\", \"I've Seen All Good People\", \"Perpetual Change\"
   | PartDrums1 -- ^ Used for both Drums and Drums 1
   | PartDrums2 -- ^ Rarely used. Seen in \"Space Truckin\'\"
   | PartKeys1 -- ^ Used for both Keys and Keys 1
@@ -80,7 +81,9 @@ titleToPart s = case s of
   "Guitar"   -> Just PartGuitar1
   "Guitar 1" -> Just PartGuitar1
   "Guitar 2" -> Just PartGuitar2
-  "Bass"     -> Just PartBass
+  "Bass"     -> Just PartBass1
+  "Bass 1"   -> Just PartBass1
+  "Bass 2"   -> Just PartBass2
   "Drums"    -> Just PartDrums1
   "Drums 1"  -> Just PartDrums1
   "Drums 2"  -> Just PartDrums2
@@ -91,7 +94,10 @@ titleToPart s = case s of
   "Synth"    -> Just PartSynth
   "Organ"    -> Just PartOrgan
   "Vocal"    -> Just PartVocal
+  "Vocal 1"  -> Just PartVocal -- I've Seen All Good People
+  "Vocals"   -> Just PartVocal -- South Side of the Sky
   "B Vocals" -> Just PartBVocals
+  "Vocal 2"  -> Just PartBVocals -- I've Seen All Good People
   _          -> Nothing
 
 titleToAudioPart :: String -> Instrument -> Maybe AudioPart
@@ -102,7 +108,8 @@ partToInstrument :: Part -> Instrument
 partToInstrument p = case p of
   PartGuitar1 -> Guitar
   PartGuitar2 -> Guitar
-  PartBass    -> Bass
+  PartBass1   -> Bass
+  PartBass2   -> Bass
   PartDrums1  -> Drums
   PartDrums2  -> Drums
   PartKeys1   -> Keyboard
