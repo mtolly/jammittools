@@ -33,7 +33,7 @@ import Data.Maybe (fromMaybe)
 import System.Environment (lookupEnv)
 import qualified Data.Map as Map
 import qualified System.Directory as Dir
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeFileName, dropTrailingPathSeparator)
 import qualified System.Info as Info
 
 import Sound.Jammit.Internal.PropertyList
@@ -233,11 +233,13 @@ lsAbsolute d =
 -- | Searches a directory and all subdirectories for folders containing a Jammit
 -- info file.
 songSubdirs :: FilePath -> IO [FilePath]
-songSubdirs dir = do
-  isSong <- Dir.doesFileExist $ dir </> "info.plist"
-  let here = [dir | isSong]
-  subdirs <- lsAbsolute dir >>= filterM Dir.doesDirectoryExist
-  (here ++) . concat <$> mapM songSubdirs subdirs
+songSubdirs dir = case takeFileName $ dropTrailingPathSeparator dir of
+  '.' : _ -> return []
+  _       -> do
+    isSong <- Dir.doesFileExist $ dir </> "info.plist"
+    let here = [dir | isSong]
+    subdirs <- lsAbsolute dir >>= filterM Dir.doesDirectoryExist
+    (here ++) . concat <$> mapM songSubdirs subdirs
 
 data Beat = Beat
   { isDownbeat  :: Bool
