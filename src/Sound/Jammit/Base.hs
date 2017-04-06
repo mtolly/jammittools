@@ -234,8 +234,8 @@ lsAbsolute d =
 -- info file.
 songSubdirs :: FilePath -> IO [FilePath]
 songSubdirs dir = case takeFileName $ dropTrailingPathSeparator dir of
-  '.' : _ -> return []
-  _       -> do
+  fn@('.' : _ : _) | fn /= ".." -> return []
+  _                             -> do
     isSong <- Dir.doesFileExist $ dir </> "info.plist"
     let here = [dir | isSong]
     subdirs <- lsAbsolute dir >>= filterM Dir.doesDirectoryExist
