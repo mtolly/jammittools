@@ -2,5 +2,5 @@ flags: {}
 packages:
 - '.'
 extra-deps:
-- conduit-audio-0.2.0.2
-resolver: lts-8.0
+- conduit-audio-0.2.0.3
+resolver: nightly-2017-09-10
