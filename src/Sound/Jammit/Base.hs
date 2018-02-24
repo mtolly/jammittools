@@ -236,7 +236,8 @@ songSubdirs :: FilePath -> IO [FilePath]
 songSubdirs dir = case takeFileName $ dropTrailingPathSeparator dir of
   fn@('.' : _ : _) | fn /= ".." -> return []
   _                             -> do
-    isSong <- Dir.doesFileExist $ dir </> "info.plist"
+    isSong <- and <$> mapM Dir.doesFileExist
+      [dir </> "info.plist", dir </> "tracks.plist"]
     let here = [dir | isSong]
     subdirs <- lsAbsolute dir >>= filterM Dir.doesDirectoryExist
     (here ++) . concat <$> mapM songSubdirs subdirs
