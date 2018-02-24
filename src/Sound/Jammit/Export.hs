@@ -15,23 +15,21 @@ module Sound.Jammit.Export
 , writeMetronomeTrack
 ) where
 
-import Control.Applicative (liftA2)
-import Control.Monad (forM, forever)
-import Data.Char (toLower)
-import Data.Int (Int16, Int32)
-import Data.List (isInfixOf, sort, isPrefixOf)
-import Data.Maybe (catMaybes, fromMaybe)
-
-import System.Directory (getDirectoryContents)
-import System.FilePath ((</>), splitFileName, takeFileName)
-
-import Sound.Jammit.Internal.Image
-import Sound.Jammit.Base
-import Sound.Jammit.Internal.Audio
-import Sound.Jammit.Internal.TempIO
-
-import qualified Data.Conduit.Audio as A
-import Control.Monad.Trans.Resource (MonadResource, runResourceT)
+import           Control.Applicative          (liftA2)
+import           Control.Monad                (forM, forever)
+import           Control.Monad.Trans.Resource (MonadResource, runResourceT)
+import           Data.Char                    (toLower)
+import qualified Data.Conduit.Audio           as A
+import           Data.Int                     (Int16, Int32)
+import           Data.List                    (isInfixOf, isPrefixOf, sort)
+import           Data.Maybe                   (catMaybes, fromMaybe)
+import           Sound.Jammit.Base
+import           Sound.Jammit.Internal.Audio
+import           Sound.Jammit.Internal.Image
+import           Sound.Jammit.Internal.TempIO
+import           System.Directory             (getDirectoryContents)
+import           System.FilePath              (splitFileName, takeFileName,
+                                               (</>))
 
 type Library = [(FilePath, Info, [Track])]
 

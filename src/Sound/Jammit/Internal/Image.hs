@@ -3,18 +3,17 @@ module Sound.Jammit.Internal.Image
 , jpegsToPDF
 ) where
 
-import qualified Codec.Picture as P
-import Codec.Picture.Types (convertImage)
-import Control.Monad (forM_, replicateM)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Trans.Class (lift)
-import qualified Graphics.PDF as PDF
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.Conduit as C
-import Data.Maybe (catMaybes)
-import qualified Data.Vector.Storable as V
-
-import Sound.Jammit.Internal.TempIO
+import qualified Codec.Picture                as P
+import           Codec.Picture.Types          (convertImage)
+import           Control.Monad                (forM_, replicateM)
+import           Control.Monad.IO.Class       (MonadIO)
+import           Control.Monad.Trans.Class    (lift)
+import qualified Data.ByteString.Lazy         as BL
+import qualified Data.Conduit                 as C
+import           Data.Maybe                   (catMaybes)
+import qualified Data.Vector.Storable         as V
+import qualified Graphics.PDF                 as PDF
+import           Sound.Jammit.Internal.TempIO
 
 loadPNG :: FilePath -> IO (P.Image P.PixelRGB8)
 loadPNG fp = do

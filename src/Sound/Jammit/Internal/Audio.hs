@@ -13,10 +13,12 @@ module Sound.Jammit.Internal.Audio
 
 import           Control.Monad                (liftM2, unless)
 import           Control.Monad.IO.Class       (liftIO)
+import           Control.Monad.Trans.Resource (MonadResource)
 import qualified Data.ByteString              as B
-import           Data.ByteString.Char8        () -- for IsString instance
+import           Data.ByteString.Char8        ()
 import qualified Data.ByteString.Unsafe       as B
 import qualified Data.Conduit                 as C
+import qualified Data.Conduit.Audio           as A
 import qualified Data.Conduit.List            as CL
 import qualified Data.Vector.Storable         as V
 import           Foreign                      (Int16, Int32, Ptr, Word16,
@@ -26,9 +28,6 @@ import           Foreign                      (Int16, Int32, Ptr, Word16,
 import           GHC.IO.Handle                (HandlePosn (..))
 import qualified System.IO                    as IO
 import           System.IO.Unsafe             (unsafePerformIO)
-
-import           Control.Monad.Trans.Resource (MonadResource)
-import qualified Data.Conduit.Audio           as A
 
 parseChunk :: IO.Handle -> IO (B.ByteString, (HandlePosn, HandlePosn))
 parseChunk h = do

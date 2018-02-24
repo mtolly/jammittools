@@ -8,15 +8,15 @@ module Sound.Jammit.Internal.TempIO
 , liftIO
 ) where
 
-import Data.List (stripPrefix)
-import System.IO (hClose)
-import System.IO.Error (catchIOError)
-
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Reader (ask, ReaderT(..))
-import System.Directory (copyFile, renameFile)
-import System.FilePath (splitPath)
-import System.IO.Temp (openTempFile, withSystemTempDirectory)
+import           Control.Monad.IO.Class     (liftIO)
+import           Control.Monad.Trans.Reader (ReaderT (..), ask)
+import           Data.List                  (stripPrefix)
+import           System.Directory           (copyFile, renameFile)
+import           System.FilePath            (splitPath)
+import           System.IO                  (hClose)
+import           System.IO.Error            (catchIOError)
+import           System.IO.Temp             (openTempFile,
+                                             withSystemTempDirectory)
 
 -- | A wrapper around IO with a designated directory for temporary files.
 type TempIO = ReaderT FilePath IO

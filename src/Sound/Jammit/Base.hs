@@ -1,7 +1,7 @@
 {- |
 Basic types and functions for dealing with Jammit song packages.
 -}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP             #-}
 {-# LANGUAGE RecordWildCards #-}
 module Sound.Jammit.Base
 ( Instrument(..)
@@ -23,20 +23,21 @@ module Sound.Jammit.Base
 , sheetWidth, sheetHeight
 ) where
 
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative ((<$>))
-#endif
-import Control.Applicative ((<|>))
-import Control.Monad (filterM, guard, forM)
-import Data.Char (toLower)
-import Data.Maybe (fromMaybe)
-import System.Environment (lookupEnv)
-import qualified Data.Map as Map
-import qualified System.Directory as Dir
-import System.FilePath ((</>), takeFileName, dropTrailingPathSeparator)
-import qualified System.Info as Info
+import           Control.Applicative                ((<|>))
+import           Control.Monad                      (filterM, forM, guard)
+import           Data.Char                          (toLower)
+import qualified Data.Map                           as Map
+import           Data.Maybe                         (fromMaybe)
+import           Sound.Jammit.Internal.PropertyList
+import qualified System.Directory                   as Dir
+import           System.Environment                 (lookupEnv)
+import           System.FilePath                    (dropTrailingPathSeparator,
+                                                     takeFileName, (</>))
+import qualified System.Info                        as Info
 
-import Sound.Jammit.Internal.PropertyList
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative                ((<$>))
+#endif
 
 -- | The 'Enum' instance corresponds to the number used in the 'instrument'
 -- property, and the names (used by 'Show' and 'Read') are capitalized versions

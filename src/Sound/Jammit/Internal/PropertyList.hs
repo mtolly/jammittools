@@ -1,8 +1,8 @@
 -- | A very simple, non-robust property list parser.
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Sound.Jammit.Internal.PropertyList
 ( readPropertyList
 , PropertyList(..)
@@ -11,18 +11,18 @@ module Sound.Jammit.Internal.PropertyList
 , fromLookup
 ) where
 
-import qualified Data.Text.IO as TIO
-import Text.XML.Light
-import qualified Data.Map as Map
-import Text.Read (readMaybe)
-import Data.Maybe (mapMaybe, fromJust)
-import Data.Char (isSpace)
-import Control.Monad (guard)
+import           Control.Monad       (guard)
+import           Data.Char           (isSpace)
+import qualified Data.Map            as Map
+import           Data.Maybe          (fromJust, mapMaybe)
+import qualified Data.Text.IO        as TIO
+import           Text.Read           (readMaybe)
+import           Text.XML.Light
 
 #if !MIN_VERSION_base(4,8,0)
-import Prelude hiding (mapM)
-import Data.Traversable (mapM)
-import Control.Applicative ((<$>))
+import           Control.Applicative ((<$>))
+import           Data.Traversable    (mapM)
+import           Prelude             hiding (mapM)
 #endif
 
 data PropertyList

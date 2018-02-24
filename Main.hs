@@ -1,9 +1,6 @@
 {-# LANGUAGE CPP #-}
 module Main (main) where
 
-#if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative    ((<$>))
-#endif
 import           Control.Applicative    ((<|>))
 import           Control.Monad          (forM_, unless, (>=>))
 import           Data.Char              (toLower)
@@ -21,6 +18,10 @@ import           System.Exit            (exitFailure)
 import           System.FilePath        (makeValid, takeDirectory, (<.>), (</>))
 import           Text.PrettyPrint.Boxes (hsep, left, render, text, top, vcat,
                                          (/+/))
+
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative    ((<$>))
+#endif
 
 printUsage :: IO ()
 printUsage = do
