@@ -20,7 +20,7 @@ import Control.Monad (forM, forever)
 import Data.Char (toLower)
 import Data.Int (Int16, Int32)
 import Data.List (isInfixOf, sort, isPrefixOf)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromMaybe)
 
 import System.Directory (getDirectoryContents)
 import System.FilePath ((</>), splitFileName, takeFileName)
@@ -81,15 +81,18 @@ getSheetParts lib = do
     _ -> []
 
 audioSource :: (MonadResource m) => FilePath -> IO (A.AudioSource m Int16)
-audioSource fp = if takeFileName fp `elem` [tttDrums, tttDrumsBack]
-  then fmap (A.padStart $ A.Frames 38) $ readIMA fp
-  else readIMA fp
-  -- I've only found one audio file where the instruments are not aligned:
-  -- the drums and drums backing track for Take the Time are 38 samples ahead
-  -- of the other instruments. So as a hack, we pad the front of them by 38
-  -- samples to line things up.
-  where tttDrums     = "793EAAE0-6761-44D7-9A9A-1FB451A2A438_jcfx"
-        tttDrumsBack = "37EE5AA5-4049-4CED-844A-D34F6B165F67_jcfx"
+audioSource fp = let
+  -- These are hacks that make one instrument line up with the rest of a song.
+  timingHacks =
+    -- Take the Time (Dream Theater)
+    [ ("793EAAE0-6761-44D7-9A9A-1FB451A2A438_jcfx", A.padStart $ A.Frames 38) -- Drums
+    , ("37EE5AA5-4049-4CED-844A-D34F6B165F67_jcfx", A.padStart $ A.Frames 38) -- Drums backing
+    -- Rockstar (Nickelback)
+    , ("FB9A99DB-C70C-47CB-B63F-A78F11AC05D5_jcfx", A.dropStart $ A.Frames 11) -- Vocal
+    , ("7998F9B7-8A97-49D0-A3A9-C001FDD1C1DC_jcfx", A.dropStart $ A.Frames 11) -- B Vocals
+    , ("C4C543A0-EB1F-4628-A401-C5860D675FA4_jcfx", A.dropStart $ A.Frames 11) -- Vocal backing
+    ]
+  in fromMaybe id (lookup (takeFileName fp) timingHacks) <$> readIMA fp
 
 runAudio
   :: [FilePath] -- ^ AIFCs to mix in normally
