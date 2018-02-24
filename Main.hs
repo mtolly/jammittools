@@ -2,26 +2,25 @@
 module Main (main) where
 
 #if !MIN_VERSION_base(4,8,0)
-import Control.Applicative ((<$>))
+import           Control.Applicative    ((<$>))
 #endif
-import Control.Applicative ((<|>))
-import Control.Monad ((>=>), forM_, unless)
-import Data.Char (toLower)
-import Data.List (sort, nub, partition)
-import Data.Maybe (catMaybes, mapMaybe, fromMaybe, listToMaybe)
-import Data.Version (showVersion)
-import qualified System.Console.GetOpt as Opt
-import qualified System.Environment as Env
-import System.Exit (exitFailure)
-
-import System.Directory (createDirectoryIfMissing)
-import System.FilePath ((</>), makeValid)
-import Text.PrettyPrint.Boxes
-  (text, vcat, left, render, hsep, top, (/+/))
-
-import Sound.Jammit.Base
-import Sound.Jammit.Export
-import qualified Paths_jammittools as Paths
+import           Control.Applicative    ((<|>))
+import           Control.Monad          (forM_, unless, (>=>))
+import           Data.Char              (toLower)
+import           Data.List              (nub, partition, sort)
+import           Data.Maybe             (catMaybes, fromMaybe, listToMaybe,
+                                         mapMaybe, maybeToList)
+import           Data.Version           (showVersion)
+import qualified Paths_jammittools      as Paths
+import           Sound.Jammit.Base
+import           Sound.Jammit.Export
+import qualified System.Console.GetOpt  as Opt
+import           System.Directory       (createDirectoryIfMissing)
+import qualified System.Environment     as Env
+import           System.Exit            (exitFailure)
+import           System.FilePath        (makeValid, takeDirectory, (</>))
+import           Text.PrettyPrint.Boxes (hsep, left, render, text, top, vcat,
+                                         (/+/))
 
 printUsage :: IO ()
 printUsage = do
@@ -190,14 +189,13 @@ showLibrary lib = let
 -- to filter it.
 searchResults :: Args -> IO Library
 searchResults args = do
-  jmt <- case jammitDir args of
-    Just j  -> return j
+  exeDir <- takeDirectory <$> Env.getExecutablePath
+  jmt    <- case jammitDir args of
+    Just j  -> return [j]
     Nothing -> Env.lookupEnv "JAMMIT" >>= \mv -> case mv of
-      Just j -> return j
-      Nothing -> let
-        err = "Couldn't find Jammit directory. Try -j or the env var JAMMIT"
-        in fromMaybe (error err) <$> findJammitDir
-  db <- loadLibrary jmt
+      Just j  -> return [j]
+      Nothing -> maybeToList <$> findJammitDir
+  db <- concat <$> mapM loadLibrary (exeDir : jmt)
   return $ filterLibrary args db
 
 -- | Checks that the search actually narrowed down the library to a single song.
