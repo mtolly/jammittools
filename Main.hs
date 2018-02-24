@@ -8,8 +8,8 @@ import           Control.Applicative    ((<|>))
 import           Control.Monad          (forM_, unless, (>=>))
 import           Data.Char              (toLower)
 import           Data.List              (nub, partition, sort)
-import           Data.Maybe             (catMaybes, fromMaybe, listToMaybe,
-                                         mapMaybe, maybeToList)
+import           Data.Maybe             (catMaybes, fromMaybe, mapMaybe,
+                                         maybeToList)
 import           Data.Version           (showVersion)
 import qualified Paths_jammittools      as Paths
 import           Sound.Jammit.Base
@@ -18,7 +18,7 @@ import qualified System.Console.GetOpt  as Opt
 import           System.Directory       (createDirectoryIfMissing)
 import qualified System.Environment     as Env
 import           System.Exit            (exitFailure)
-import           System.FilePath        (makeValid, takeDirectory, (</>))
+import           System.FilePath        (makeValid, takeDirectory, (<.>), (</>))
 import           Text.PrettyPrint.Boxes (hsep, left, render, text, top, vcat,
                                          (/+/))
 
@@ -58,7 +58,7 @@ main = do
             backingOrder = [Drums, Guitar, Keyboard, Bass, Vocal]
             isGuitar p = elem (partToInstrument p) [Guitar, Bass]
             (gtrs, nongtrs) = partition isGuitar [minBound .. maxBound]
-            chosenBacking = listToMaybe $ flip mapMaybe backingOrder $ \i ->
+            backingTracks = flip mapMaybe backingOrder $ \i ->
               case getOneResult (Without i) audios of
                 Left  _  -> Nothing
                 Right fp -> Just (i, fp)
@@ -67,7 +67,7 @@ main = do
             (Right note, Right tab) -> let
               parts = [note, tab]
               systemHeight = sum $ map snd parts
-              fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
+              fout = dout </> drop 4 (map toLower $ show p) <.> "pdf"
               in do
                 putStrLn $ "Exporting notation & tab for " ++ show p
                 runSheet [note, tab] (getPageLines systemHeight args) fout
@@ -76,7 +76,7 @@ main = do
           case getOneResult (Notation p) sheets of
             Left  _    -> return ()
             Right note -> let
-              fout = dout </> drop 4 (map toLower (show p) ++ ".pdf")
+              fout = dout </> drop 4 (map toLower $ show p) <.> "pdf"
               in do
                 putStrLn $ "Exporting notation for " ++ show p
                 runSheet [note] (getPageLines (snd note) args) fout
@@ -84,18 +84,23 @@ main = do
           case getOneResult (Only p) audios of
             Left  _  -> return ()
             Right fp -> let
-              fout = dout </> drop 4 (map toLower (show p) ++ ".wav")
+              fout = dout </> drop 4 (map toLower $ show p) <.> "wav"
               in do
                 putStrLn $ "Exporting audio for " ++ show p
                 runAudio [fp] [] fout
-        case chosenBacking of
-          Nothing            -> return ()
-          Just (inst, fback) -> let
-            others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
-            fout = dout </> "backing.wav"
-            in do
-              putStrLn "Exporting backing audio (could take a while)"
-              runAudio [fback] others fout
+        if rawBackings args
+          then forM_ backingTracks $ \(inst, fback) -> do
+            putStrLn $ "Exporting backing track for " ++ show inst
+            let fout = dout </> "backing-" ++ map toLower (show inst) <.> "wav"
+            runAudio [fback] [] fout
+          else case backingTracks of
+            []                -> return ()
+            (inst, fback) : _ -> let
+              others = [ fp | (Only p, fp) <- audios, partToInstrument p /= inst ]
+              fout = dout </> "backing.wav"
+              in do
+                putStrLn "Exporting backing audio (could take a while)"
+                runAudio [fback] others fout
         clickTracks <- mapM loadBeats $ map (\(fp, _, _) -> fp) matches
         case catMaybes clickTracks of
           [] -> return ()
@@ -271,6 +276,9 @@ argOpts =
   , Opt.Option ['c'] ["check"]
     (Opt.NoArg $ \a -> a { function = CheckPresence })
     "function: check presence of audio parts"
+  , Opt.Option [] ["raw"]
+    (Opt.NoArg $ \a -> a { rawBackings = True })
+    "when exporting song/library, extract all individual backing tracks"
   ]
 
 data Args = Args
@@ -280,6 +288,7 @@ data Args = Args
   , pageLines     :: Maybe Int
   , jammitDir     :: Maybe FilePath
   , function      :: Function
+  , rawBackings   :: Bool
   }
 
 data Function
@@ -301,6 +310,7 @@ defaultArgs = Args
   , pageLines     = Nothing
   , jammitDir     = Nothing
   , function      = PrintUsage
+  , rawBackings   = False
   }
 
 partToChar :: Part -> Char
