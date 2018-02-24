@@ -88,9 +88,9 @@ audioSource fp = let
     [ ("793EAAE0-6761-44D7-9A9A-1FB451A2A438_jcfx", A.padStart $ A.Frames 38) -- Drums
     , ("37EE5AA5-4049-4CED-844A-D34F6B165F67_jcfx", A.padStart $ A.Frames 38) -- Drums backing
     -- Rockstar (Nickelback)
-    , ("FB9A99DB-C70C-47CB-B63F-A78F11AC05D5_jcfx", A.dropStart $ A.Frames 11) -- Vocal
-    , ("7998F9B7-8A97-49D0-A3A9-C001FDD1C1DC_jcfx", A.dropStart $ A.Frames 11) -- B Vocals
-    , ("C4C543A0-EB1F-4628-A401-C5860D675FA4_jcfx", A.dropStart $ A.Frames 11) -- Vocal backing
+    , ("FB9A99DB-C70C-47CB-B63F-A78F11AC05D5_jcfx", A.dropStart $ A.Frames 10) -- Vocal
+    , ("7998F9B7-8A97-49D0-A3A9-C001FDD1C1DC_jcfx", A.dropStart $ A.Frames 10) -- B Vocals
+    , ("C4C543A0-EB1F-4628-A401-C5860D675FA4_jcfx", A.dropStart $ A.Frames 10) -- Vocal backing
     ]
   in fromMaybe id (lookup (takeFileName fp) timingHacks) <$> readIMA fp
 
