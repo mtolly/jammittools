@@ -52,6 +52,7 @@ Other lesser-used flags:
     # On Windows and OS X, the official app's library location is used
     # if you do not specify this flag.
     # You can also specify the environment variable JAMMIT.
+    # Songs in the same folder as the program will also always be found.
 
     -T "My Song"
     # Exact search on title, instead of -t which is case-insensitive substring.
@@ -69,6 +70,10 @@ Other lesser-used flags:
     # One system contains a line from each individual part.
     # If this flag is not given, an appropriate number of systems will be chosen
     # to get close to an 8.5" by 11" page ratio.
+
+    --raw
+    # For -x and -b options, exports all original backing tracks separately
+    # instead of producing a combined one.
 
 Instrument parts are given by this somewhat terse syntax:
 
