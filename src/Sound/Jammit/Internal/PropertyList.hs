@@ -43,17 +43,18 @@ getElements = mapMaybe $ \case
   Elem e -> Just e
   _      -> Nothing
 
-asChild :: Element -> Maybe (String, String)
+asChild :: Element -> Either String (String, String)
 asChild Element{ elName = QName{..}, .. } = case elContent of
-  [Text CData{..}] -> Just (qName, cdData)
-  _                -> Nothing
+  [Text CData{..}] -> Right (qName, cdData)
+  []               -> Right (qName, "")
+  _                -> Left "(asChild) expected a single text child"
 
-plist :: Element -> Maybe PropertyList
+plist :: Element -> Either String PropertyList
 plist e = case asParent e of
   ("plist", [x]) -> value x
-  _              -> Nothing
+  _              -> Left "(plist) expected a single <plist> parent tag"
 
-value :: Element -> Maybe PropertyList
+value :: Element -> Either String PropertyList
 value e = case asParent e of
   ("array", elts) -> Array <$> mapM value elts
   ("dict" , elts) -> Dict . Map.fromList <$> go elts where
@@ -61,25 +62,26 @@ value e = case asParent e of
       ("key", k) <- asChild x
       v <- value y
       ((k, v) :) <$> go xs
-    go [] = Just []
-    go _  = Nothing
-  ("true" , []) -> Just $ Bool True
-  ("false", []) -> Just $ Bool False
+    go [] = Right []
+    go _  = Left "(value) odd number of children when parsing a dict"
+  ("true" , []) -> Right $ Bool True
+  ("false", []) -> Right $ Bool False
   _ -> asChild e >>= \case
-    ("string" , s) -> Just $ String $ trim s
-    ("real"   , s) -> Real    <$> readMaybe s
-    ("integer", s) -> Integer <$> readMaybe s
-    _              -> Nothing
+    ("string" , s) -> Right $ String $ trim s
+    ("real"   , s) -> maybe (Left "(value) couldn't parse a <real>") (Right . Real) $ readMaybe s
+    ("integer", s) -> maybe (Left "(value) couldn't parse an <integer>") (Right . Integer) $ readMaybe s
+    _              -> Left "(value) expected <string> <real> or <integer>"
     where trim = reverse . dropWhile isSpace . reverse . dropWhile isSpace
 
 -- | Reads strictly so as not to exhaust our allowed open files.
 readPropertyList :: FilePath -> IO PropertyList
 readPropertyList f = do
   txt <- TIO.readFile f
-  case parseXMLDoc txt >>= plist of
-    Nothing -> error $
-      "readPropertyList: failed to read property list from " ++ f
-    Just pl -> return pl
+  case parseXMLDoc txt of
+    Nothing -> error $ "readPropertyList: couldn't parse XML from " ++ f
+    Just xml -> case plist xml of
+      Left e -> error $ "readPropertyList: failed to read property list from " ++ f ++ " : " ++ e
+      Right pl -> return pl
 
 -- | Only covers parsing values from property lists.
 class PropertyListItem a where
