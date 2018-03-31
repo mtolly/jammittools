@@ -71,8 +71,13 @@ getSheetParts lib = do
   trk <- trks
   case (trackTitle trk >>= \t -> titleToPart t, scoreSystemInterval trk) of
     (Just p, Just ht) -> let
-      sheet = (Notation p, (dir </> (identifier trk ++ "_jcfn"), ht))
-      tab   = (Tab      p, (dir </> (identifier trk ++ "_jcft"), ht))
+      sheet = (Notation p, (dir </> (identifier trk ++ "_jcfn"), ht'))
+      tab   = (Tab      p, (dir </> (identifier trk ++ "_jcft"), ht'))
+      ht' = case ht of
+        0 -> case identifier trk of
+          "20C25A80-BFF2-43C6-959A-E284349542CE" -> 129 -- B Vocals for Walking In Memphis
+          _ -> 129 -- dunno lol, but assume something so that it's not 0! (eats all memory)
+        _ -> ht
       in if elem (partToInstrument p) [Guitar, Bass]
         then [sheet, tab]
         else [sheet]
