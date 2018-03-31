@@ -171,11 +171,11 @@ instance PropertyListItem Info where
     countInBeats <- fromLookup "countInBeats" dict
     courtesyOf   <- fromLookup "courtesyOf"   dict
     demo         <- fromLookup "demo"         dict
-    explicit     <- fromLookup "explicit"     dict
+    explicit     <- fromLookup "explicit"     dict <|> return False
     genre        <- fromLookup "genre"        dict
     instrument   <- fromLookup "instrument"   dict
     publishedBy  <- fromLookup "publishedBy"  dict
-    skillLevel   <- fromLookup "skillLevel"   dict
+    skillLevel   <- fromLookup "skillLevel"   dict <|> return (OneSkill 0)
     sku          <- fromLookup "sku"          dict
     slow         <- fromLookup "slow"         dict
     title        <- fromLookup "title"        dict
