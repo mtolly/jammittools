@@ -1,3 +1,10 @@
+## v0.5.5
+
+  * Fixed a memory leak from a song with sheet music height set to 0
+  * Fixed one song with some missing `info.plist` fields
+  * Support for all remaining instrument track names
+  * Fixed empty string value not parsing from `plist` files
+
 ## v0.5.4
 
   * Program will always also look for songs in the folder it's in

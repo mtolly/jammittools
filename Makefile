@@ -1,4 +1,4 @@
-release := jammittools-0.5.4
+release := jammittools-0.5.5
 
 .PHONY: default mac win
 
