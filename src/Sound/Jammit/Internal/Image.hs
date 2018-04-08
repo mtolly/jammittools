@@ -110,6 +110,7 @@ imagePage jpeg = do
   PDF.drawWithPage page $ PDF.drawXObject ref
 
 jpegsToPDF :: [FilePath] -> FilePath -> IO ()
+jpegsToPDF [] _ = return () -- Buddy Rich "Love for Sale" Kick channel
 jpegsToPDF jpegs pdf = do
   Right js <- fmap sequence $ mapM PDF.readJpegFile jpegs
   PDF.runPdf pdf PDF.standardDocInfo (PDF.PDFRect 0 0 600 400) $

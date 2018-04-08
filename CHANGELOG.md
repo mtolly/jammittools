@@ -4,6 +4,7 @@
   * Fixed one song with some missing `info.plist` fields
   * Support for all remaining instrument track names
   * Fixed empty string value not parsing from `plist` files
+  * Fixed crash when exporting sheet music for a track with no images
 
 ## v0.5.4
 
