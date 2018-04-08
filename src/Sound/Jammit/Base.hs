@@ -82,12 +82,14 @@ titleToPart s = case s of
   "Guitar"   -> Just PartGuitar1
   "Guitar 1" -> Just PartGuitar1
   "Guitar 2" -> Just PartGuitar2
+  "GuItar 2" -> Just PartGuitar2 -- lol
   "Bass"     -> Just PartBass1
   "Bass 1"   -> Just PartBass1
   "Bass 2"   -> Just PartBass2
   "Drums"    -> Just PartDrums1
   "Drums 1"  -> Just PartDrums1
   "Drums 2"  -> Just PartDrums2
+  "Keyboard" -> Just PartKeys1 -- only 1 song
   "Keys"     -> Just PartKeys1
   "Keys 1"   -> Just PartKeys1
   "Keys 2"   -> Just PartKeys2
@@ -97,8 +99,26 @@ titleToPart s = case s of
   "Vocal"    -> Just PartVocal
   "Vocal 1"  -> Just PartVocal -- I've Seen All Good People
   "Vocals"   -> Just PartVocal -- South Side of the Sky
+  "B Vocal"  -> Just PartBVocals -- 3 songs, most say B Vocals
   "B Vocals" -> Just PartBVocals
   "Vocal 2"  -> Just PartBVocals -- I've Seen All Good People
+
+  -- non-obvious hacks
+  "Acoustic" -> Just PartGuitar1 -- these 2 are only on 1 song
+  "Electric" -> Just PartGuitar2 -- ^
+  "Jon"      -> Just PartVocal   -- these 2 are only on 1 song
+  "Sara"     -> Just PartBVocals -- ^
+  "Demi"     -> Just PartVocal   -- these 2 are only on 1 song
+  "Joe"      -> Just PartBVocals -- ^
+  "Piano 1"  -> Just PartKeys1   -- these 2 are only on 1 song
+  "Piano 2"  -> Just PartKeys2   -- ^
+  "Piano L"  -> Just PartKeys1   -- these 2 are only on 1 song
+  "Piano R"  -> Just PartKeys2   -- ^
+  "Kick"     -> Just PartDrums2  -- only on 1 song
+  "Wurli"    -> Just PartKeys2   -- only on 1 song
+
+  -- "No Band" is used in 1 song for an empty track, we just ignore
+
   _          -> Nothing
 
 titleToAudioPart :: String -> Instrument -> Maybe AudioPart
