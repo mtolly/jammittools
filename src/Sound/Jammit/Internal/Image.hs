@@ -9,6 +9,7 @@ import           Control.Monad                (forM_, replicateM)
 import           Control.Monad.IO.Class       (MonadIO)
 import           Control.Monad.Trans.Class    (lift)
 import qualified Data.ByteString.Lazy         as BL
+import           Data.Conduit                 ((.|))
 import qualified Data.Conduit                 as C
 import           Data.Maybe                   (catMaybes)
 import qualified Data.Vector.Storable         as V
@@ -21,12 +22,12 @@ loadPNG fp = do
   return $ P.convertRGB8 dyn
 
 pngChunks :: (MonadIO m) =>
-  Int -> [FilePath] -> C.Source m (P.Image P.PixelRGB8)
+  Int -> [FilePath] -> C.ConduitT () (P.Image P.PixelRGB8) m ()
 pngChunks h fps = let
-  raw :: (MonadIO m) => C.Source m (P.Image P.PixelRGB8)
+  raw :: (MonadIO m) => C.ConduitT () (P.Image P.PixelRGB8) m ()
   raw = mapM_ (\fp -> liftIO (loadPNG fp) >>= C.yield) fps
   chunk :: (Monad m) =>
-    C.Conduit (P.Image P.PixelRGB8) m (P.Image P.PixelRGB8)
+    C.ConduitT (P.Image P.PixelRGB8) (P.Image P.PixelRGB8) m ()
   chunk = C.await >>= \x -> case x of
     Nothing   -> return ()
     Just page -> case span (\c -> P.imageHeight c == h) $ vertSplit h page of
@@ -34,15 +35,15 @@ pngChunks h fps = let
       (full, part) -> mapM_ C.yield full >> C.await >>= \y -> case y of
         Nothing    -> mapM_ C.yield part
         Just page' -> C.leftover (vertConcat $ part ++ [page']) >> chunk
-  in raw C.=$= chunk
+  in raw .| chunk
 
 chunksToPages :: (Monad m) =>
-  Int -> C.Conduit [P.Image P.PixelRGB8] m (P.Image P.PixelRGB8)
+  Int -> C.ConduitT [P.Image P.PixelRGB8] (P.Image P.PixelRGB8) m ()
 chunksToPages n = fmap catMaybes (replicateM n C.await) >>= \systems -> case systems of
   [] -> return ()
   _  -> C.yield (vertConcat $ concat systems) >> chunksToPages n
 
-sinkJPEG :: C.Sink (P.Image P.PixelRGB8) TempIO [FilePath]
+sinkJPEG :: C.ConduitT (P.Image P.PixelRGB8) C.Void TempIO [FilePath]
 sinkJPEG = go [] where
   go jpegs = C.await >>= \x -> case x of
     Nothing -> return jpegs
@@ -57,7 +58,7 @@ partsToPages
   -> TempIO [FilePath]
 partsToPages parts n = let
   sources = map (\(imgs, h) -> pngChunks (fromIntegral h) imgs) parts
-  in C.sequenceSources sources C.$$ chunksToPages n C.=$= sinkJPEG
+  in C.runConduit $ C.sequenceSources sources .| chunksToPages n .| sinkJPEG
 
 saveJPEG :: FilePath -> P.Image P.PixelRGB8 -> IO ()
 saveJPEG fp img = BL.writeFile fp $ P.encodeJpegAtQuality 100 $ convertImage img

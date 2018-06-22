@@ -76,7 +76,7 @@ getSheetParts lib = do
       ht' = case ht of
         0 -> case identifier trk of
           "20C25A80-BFF2-43C6-959A-E284349542CE" -> 129 -- B Vocals for Walking In Memphis
-          _ -> 129 -- dunno lol, but assume something so that it's not 0! (eats all memory)
+          _                                      -> 129 -- dunno lol, but assume something so that it's not 0! (eats all memory)
         _ -> ht
       in if elem (partToInstrument p) [Guitar, Bass]
         then [sheet, tab]

@@ -17,6 +17,7 @@ import           Control.Monad.Trans.Resource (MonadResource)
 import qualified Data.ByteString              as B
 import           Data.ByteString.Char8        ()
 import qualified Data.ByteString.Unsafe       as B
+import           Data.Conduit                 ((.|))
 import qualified Data.Conduit                 as C
 import qualified Data.Conduit.Audio           as A
 import qualified Data.Conduit.List            as CL
@@ -117,7 +118,7 @@ clamp (vmin, vmax) v
   | otherwise = v
 
 writeWAV :: (MonadResource m) => FilePath -> A.AudioSource m Int16 -> m ()
-writeWAV fp (A.AudioSource s r c _) = s C.$$ C.bracketP
+writeWAV fp (A.AudioSource s r c _) = C.runConduit $ s .| C.bracketP
   (IO.openBinaryFile fp IO.WriteMode)
   IO.hClose
   (\h -> do
