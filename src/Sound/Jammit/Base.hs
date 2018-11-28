@@ -105,15 +105,15 @@ titleToPart s = case s of
 
   -- non-obvious hacks
   "Acoustic" -> Just PartGuitar1 -- these 2 are only on 1 song
-  "Electric" -> Just PartGuitar2 -- ^
+  "Electric" -> Just PartGuitar2
   "Jon"      -> Just PartVocal   -- these 2 are only on 1 song
-  "Sara"     -> Just PartBVocals -- ^
+  "Sara"     -> Just PartBVocals
   "Demi"     -> Just PartVocal   -- these 2 are only on 1 song
-  "Joe"      -> Just PartBVocals -- ^
+  "Joe"      -> Just PartBVocals
   "Piano 1"  -> Just PartKeys1   -- these 2 are only on 1 song
-  "Piano 2"  -> Just PartKeys2   -- ^
+  "Piano 2"  -> Just PartKeys2
   "Piano L"  -> Just PartKeys1   -- these 2 are only on 1 song
-  "Piano R"  -> Just PartKeys2   -- ^
+  "Piano R"  -> Just PartKeys2
   "Kick"     -> Just PartDrums2  -- only on 1 song
   "Wurli"    -> Just PartKeys2   -- only on 1 song
 
