@@ -1,3 +1,8 @@
+## v0.5.5.1
+
+  * Switched to new `conduit` syntax
+  * Fixed comments that were confusing Haddock
+
 ## v0.5.5
 
   * Fixed a memory leak from a song with sheet music height set to 0
