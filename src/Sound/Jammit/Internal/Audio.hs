@@ -12,6 +12,7 @@ module Sound.Jammit.Internal.Audio
 ) where
 
 import           Control.Monad                (liftM2, unless)
+import           Control.Monad.Fail           (MonadFail)
 import           Control.Monad.IO.Class       (liftIO)
 import           Control.Monad.Trans.Resource (MonadResource)
 import qualified Data.ByteString              as B
@@ -51,7 +52,7 @@ parseChunksUntil maybeEnd h = do
     then return []
     else liftM2 (:) (parseChunk h) (parseChunksUntil maybeEnd h)
 
-readIMA :: (MonadResource m) => FilePath -> IO (A.AudioSource m Int16)
+readIMA :: (MonadResource m, MonadFail m) => FilePath -> IO (A.AudioSource m Int16)
 readIMA fp = do
   let insideChunk h ctype maybeEnd f = do
         here <- liftIO $ IO.hGetPosn h

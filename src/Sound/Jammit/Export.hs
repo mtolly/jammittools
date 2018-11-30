@@ -17,6 +17,7 @@ module Sound.Jammit.Export
 
 import           Control.Applicative          (liftA2)
 import           Control.Monad                (forM, forever)
+import           Control.Monad.Fail           (MonadFail)
 import           Control.Monad.Trans.Resource (MonadResource, runResourceT)
 import           Data.Char                    (toLower)
 import qualified Data.Conduit.Audio           as A
@@ -26,7 +27,6 @@ import           Data.Maybe                   (catMaybes, fromMaybe)
 import           Sound.Jammit.Base
 import           Sound.Jammit.Internal.Audio
 import           Sound.Jammit.Internal.Image
-import           Sound.Jammit.Internal.TempIO
 import           System.Directory             (getDirectoryContents)
 import           System.FilePath              (splitFileName, takeFileName,
                                                (</>))
@@ -83,7 +83,7 @@ getSheetParts lib = do
         else [sheet]
     _ -> []
 
-audioSource :: (MonadResource m) => FilePath -> IO (A.AudioSource m Int16)
+audioSource :: (MonadResource m, MonadFail m) => FilePath -> IO (A.AudioSource m Int16)
 audioSource fp = let
   -- These are hacks that make one instrument line up with the rest of a song.
   timingHacks =
@@ -124,15 +124,12 @@ runSheet
   -> Int                   -- ^ how many sheet music systems per page
   -> FilePath              -- ^ the resulting PDF
   -> IO ()
-runSheet trks lns fout = runTempIO fout $ do
-  trkLns <- liftIO $ forM trks $ \(fp, ht) -> do
+runSheet trks lns fout = do
+  trkLns <- forM trks $ \(fp, ht) -> do
     let (dir, file) = splitFileName fp
     ls <- getDirectoryContents dir
     return (map (dir </>) $ sort $ filter (file `isPrefixOf`) ls, ht)
-  jpegs <- partsToPages trkLns lns
-  pdf <- newTempFile "pages.pdf"
-  liftIO $ jpegsToPDF jpegs pdf
-  return pdf
+  partsToPages trkLns lns >>= pagesToPDF fout
 
 writeMetronomeTrack :: FilePath -> [Beat] -> IO ()
 writeMetronomeTrack fp beats = runResourceT $ writeWAV fp $ metronomeTrack beats

@@ -1,20 +1,19 @@
 module Sound.Jammit.Internal.Image
 ( partsToPages
-, jpegsToPDF
+, pagesToPDF
 ) where
 
-import qualified Codec.Picture                as P
-import           Codec.Picture.Types          (convertImage)
-import           Control.Monad                (forM_, replicateM)
-import           Control.Monad.IO.Class       (MonadIO)
-import           Control.Monad.Trans.Class    (lift)
-import qualified Data.ByteString.Lazy         as BL
-import           Data.Conduit                 ((.|))
-import qualified Data.Conduit                 as C
-import           Data.Maybe                   (catMaybes)
-import qualified Data.Vector.Storable         as V
-import qualified Graphics.PDF                 as PDF
-import           Sound.Jammit.Internal.TempIO
+import qualified Codec.Picture             as P
+import           Codec.Picture.Types       (promoteImage)
+import           Control.Monad             (replicateM)
+import           Control.Monad.IO.Class    (MonadIO, liftIO)
+import qualified Data.ByteString.Lazy      as BL
+import           Data.Conduit              ((.|))
+import qualified Data.Conduit              as C
+import qualified Data.Conduit.List         as CL
+import           Data.Maybe                (catMaybes)
+import qualified Data.Vector.Storable      as V
+import qualified Graphics.Rasterific       as R
 
 loadPNG :: FilePath -> IO (P.Image P.PixelRGB8)
 loadPNG fp = do
@@ -43,25 +42,13 @@ chunksToPages n = fmap catMaybes (replicateM n C.await) >>= \systems -> case sys
   [] -> return ()
   _  -> C.yield (vertConcat $ concat systems) >> chunksToPages n
 
-sinkJPEG :: C.ConduitT (P.Image P.PixelRGB8) C.Void TempIO [FilePath]
-sinkJPEG = go [] where
-  go jpegs = C.await >>= \x -> case x of
-    Nothing -> return jpegs
-    Just img -> do
-      jpeg <- lift $ newTempFile "page.jpg"
-      liftIO $ saveJPEG jpeg img
-      go $ jpegs ++ [jpeg]
-
 partsToPages
   :: [([FilePath], Integer)] -- ^ [(images, system height)]
   -> Int -- ^ systems per page
-  -> TempIO [FilePath]
+  -> IO [P.Image P.PixelRGB8]
 partsToPages parts n = let
   sources = map (\(imgs, h) -> pngChunks (fromIntegral h) imgs) parts
-  in C.runConduit $ C.sequenceSources sources .| chunksToPages n .| sinkJPEG
-
-saveJPEG :: FilePath -> P.Image P.PixelRGB8 -> IO ()
-saveJPEG fp img = BL.writeFile fp $ P.encodeJpegAtQuality 100 $ convertImage img
+  in C.runConduit $ C.sequenceSources sources .| chunksToPages n .| CL.consume
 
 vertConcat :: [P.Image P.PixelRGB8] -> P.Image P.PixelRGB8
 vertConcat [] = P.Image 0 0 V.empty
@@ -103,16 +90,10 @@ vertSplit h img = if P.imageHeight img <= h
       }
     in first : vertSplit h rest
 
-imagePage :: PDF.JpegFile -> PDF.PDF ()
-imagePage jpeg = do
-  let (w, h) = PDF.jpegBounds jpeg
-  page <- PDF.addPage $ Just $ PDF.PDFRect 0 0 w h
-  ref <- PDF.createPDFJpeg jpeg
-  PDF.drawWithPage page $ PDF.drawXObject ref
-
-jpegsToPDF :: [FilePath] -> FilePath -> IO ()
-jpegsToPDF [] _ = return () -- Buddy Rich "Love for Sale" Kick channel
-jpegsToPDF jpegs pdf = do
-  Right js <- fmap sequence $ mapM PDF.readJpegFile jpegs
-  PDF.runPdf pdf PDF.standardDocInfo (PDF.PDFRect 0 0 600 400) $
-    forM_ js imagePage
+pagesToPDF :: FilePath -> [P.Image P.PixelRGB8] -> IO ()
+pagesToPDF _    []           = return ()
+pagesToPDF fout imgs@(i : _) = BL.writeFile fout $ R.renderDrawingsAtDpiToPDF
+  (P.imageWidth  i)
+  (P.imageHeight i)
+  72
+  [ R.drawImage (promoteImage img) 0 (R.V2 0 0) | img <- imgs ]
