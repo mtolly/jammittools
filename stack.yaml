@@ -1,6 +1,10 @@
 flags: {}
 packages:
 - '.'
+- location:
+    git: git://github.com/mtolly/HPDF
+    commit: d0a0ba2b355dab033b578a6c32741968cdb5eae9
+  extra-dep: true
 extra-deps:
 - conduit-audio-0.2.0.3
-resolver: nightly-2018-06-21
+resolver: nightly-2018-11-29

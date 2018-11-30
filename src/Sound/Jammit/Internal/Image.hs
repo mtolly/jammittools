@@ -106,7 +106,8 @@ vertSplit h img = if P.imageHeight img <= h
 imagePage :: PDF.JpegFile -> PDF.PDF ()
 imagePage jpeg = do
   let (w, h) = PDF.jpegBounds jpeg
-  page <- PDF.addPage $ Just $ PDF.PDFRect 0 0 w h
+  -- realToFracs below only needed on HPDF 1.5
+  page <- PDF.addPage $ Just $ PDF.PDFRect 0 0 (realToFrac w) (realToFrac h)
   ref <- PDF.createPDFJpeg jpeg
   PDF.drawWithPage page $ PDF.drawXObject ref
 

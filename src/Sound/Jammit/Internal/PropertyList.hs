@@ -58,10 +58,11 @@ value :: Element -> Either String PropertyList
 value e = case asParent e of
   ("array", elts) -> Array <$> mapM value elts
   ("dict" , elts) -> Dict . Map.fromList <$> go elts where
-    go (x : y : xs) = do
-      ("key", k) <- asChild x
-      v <- value y
-      ((k, v) :) <$> go xs
+    go (x : y : xs) = asChild x >>= \case
+      ("key", k) -> do
+        v <- value y
+        ((k, v) :) <$> go xs
+      _ -> Left "(value) expected <key> at start of <dict>"
     go [] = Right []
     go _  = Left "(value) odd number of children when parsing a dict"
   ("true" , []) -> Right $ Bool True
