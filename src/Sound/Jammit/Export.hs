@@ -27,7 +27,6 @@ import           Data.Maybe                   (catMaybes, fromMaybe)
 import           Sound.Jammit.Base
 import           Sound.Jammit.Internal.Audio
 import           Sound.Jammit.Internal.Image
-import           Sound.Jammit.Internal.TempIO
 import           System.Directory             (getDirectoryContents)
 import           System.FilePath              (splitFileName, takeFileName,
                                                (</>))
@@ -125,15 +124,13 @@ runSheet
   -> Int                   -- ^ how many sheet music systems per page
   -> FilePath              -- ^ the resulting PDF
   -> IO ()
-runSheet trks lns fout = runTempIO fout $ do
-  trkLns <- liftIO $ forM trks $ \(fp, ht) -> do
+runSheet trks lns fout = do
+  trkLns <- forM trks $ \(fp, ht) -> do
     let (dir, file) = splitFileName fp
     ls <- getDirectoryContents dir
     return (map (dir </>) $ sort $ filter (file `isPrefixOf`) ls, ht)
   jpegs <- partsToPages trkLns lns
-  pdf <- newTempFile "pages.pdf"
-  liftIO $ jpegsToPDF jpegs pdf
-  return pdf
+  jpegsToPDF jpegs fout
 
 writeMetronomeTrack :: FilePath -> [Beat] -> IO ()
 writeMetronomeTrack fp beats = runResourceT $ writeWAV fp $ metronomeTrack beats

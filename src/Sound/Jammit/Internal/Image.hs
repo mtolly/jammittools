@@ -6,15 +6,55 @@ module Sound.Jammit.Internal.Image
 import qualified Codec.Picture                as P
 import           Codec.Picture.Types          (convertImage)
 import           Control.Monad                (forM_, replicateM)
-import           Control.Monad.IO.Class       (MonadIO)
-import           Control.Monad.Trans.Class    (lift)
+import           Control.Monad.IO.Class       (MonadIO(..))
 import qualified Data.ByteString.Lazy         as BL
+import qualified Data.ByteString         as B
 import           Data.Conduit                 ((.|))
+import           Data.Conduit.List (consume)
 import qualified Data.Conduit                 as C
 import           Data.Maybe                   (catMaybes)
 import qualified Data.Vector.Storable         as V
-import qualified Graphics.PDF                 as PDF
-import           Sound.Jammit.Internal.TempIO
+import Foreign
+import Foreign.C
+import Control.Exception (bracket)
+import Codec.Picture.Jpg (encodeJpegAtQuality)
+
+data PDFInfo
+data PDFDoc
+data PDFObject
+
+foreign import ccall unsafe "pdf_create"
+  pdf_create :: CInt -> CInt -> Ptr PDFInfo -> IO (Ptr PDFDoc)
+
+foreign import ccall unsafe "pdf_create_nostruct"
+  pdf_create_nostruct :: CInt -> CInt
+    -> CString -> CString -> CString -> CString -> CString -> CString
+    -> IO (Ptr PDFDoc)
+
+foreign import ccall unsafe "pdf_append_page"
+  pdf_append_page :: Ptr PDFDoc -> IO (Ptr PDFObject)
+
+foreign import ccall unsafe "pdf_page_set_size"
+  pdf_page_set_size :: Ptr PDFDoc -> Ptr PDFObject -> CInt -> CInt -> IO CInt
+
+foreign import ccall unsafe "pdf_add_jpeg"
+  pdf_add_jpeg :: Ptr PDFDoc -> Ptr PDFObject -> CInt -> CInt -> CInt -> CInt -> CString -> IO CInt
+
+foreign import ccall unsafe "pdf_add_jpeg_direct"
+  pdf_add_jpeg_direct
+    :: Ptr PDFDoc
+    -> Ptr PDFObject
+    -> CInt -> CInt
+    -> CInt -> CInt
+    -> CInt -> CInt
+    -> Ptr Word8 -> CSize
+    -> IO CInt
+
+foreign import ccall unsafe "pdf_save"
+  pdf_save :: Ptr PDFDoc -> CString -> IO CInt
+
+foreign import ccall unsafe "pdf_destroy"
+  pdf_destroy :: Ptr PDFDoc -> IO ()
 
 loadPNG :: FilePath -> IO (P.Image P.PixelRGB8)
 loadPNG fp = do
@@ -43,25 +83,13 @@ chunksToPages n = fmap catMaybes (replicateM n C.await) >>= \systems -> case sys
   [] -> return ()
   _  -> C.yield (vertConcat $ concat systems) >> chunksToPages n
 
-sinkJPEG :: C.ConduitT (P.Image P.PixelRGB8) C.Void TempIO [FilePath]
-sinkJPEG = go [] where
-  go jpegs = C.await >>= \x -> case x of
-    Nothing -> return jpegs
-    Just img -> do
-      jpeg <- lift $ newTempFile "page.jpg"
-      liftIO $ saveJPEG jpeg img
-      go $ jpegs ++ [jpeg]
-
 partsToPages
   :: [([FilePath], Integer)] -- ^ [(images, system height)]
   -> Int -- ^ systems per page
-  -> TempIO [FilePath]
+  -> IO [P.Image P.PixelRGB8]
 partsToPages parts n = let
   sources = map (\(imgs, h) -> pngChunks (fromIntegral h) imgs) parts
-  in C.runConduit $ C.sequenceSources sources .| chunksToPages n .| sinkJPEG
-
-saveJPEG :: FilePath -> P.Image P.PixelRGB8 -> IO ()
-saveJPEG fp img = BL.writeFile fp $ P.encodeJpegAtQuality 100 $ convertImage img
+  in C.runConduit $ C.sequenceSources sources .| chunksToPages n .| consume
 
 vertConcat :: [P.Image P.PixelRGB8] -> P.Image P.PixelRGB8
 vertConcat [] = P.Image 0 0 V.empty
@@ -103,17 +131,25 @@ vertSplit h img = if P.imageHeight img <= h
       }
     in first : vertSplit h rest
 
-imagePage :: PDF.JpegFile -> PDF.PDF ()
-imagePage jpeg = do
-  let (w, h) = PDF.jpegBounds jpeg
-  -- realToFracs below only needed on HPDF 1.5
-  page <- PDF.addPage $ Just $ PDF.PDFRect 0 0 (realToFrac w) (realToFrac h)
-  ref <- PDF.createPDFJpeg jpeg
-  PDF.drawWithPage page $ PDF.drawXObject ref
-
-jpegsToPDF :: [FilePath] -> FilePath -> IO ()
+jpegsToPDF :: [P.Image P.PixelRGB8] -> FilePath -> IO ()
 jpegsToPDF [] _ = return () -- Buddy Rich "Love for Sale" Kick channel
-jpegsToPDF jpegs pdf = do
-  Right js <- fmap sequence $ mapM PDF.readJpegFile jpegs
-  PDF.runPdf pdf PDF.standardDocInfo (PDF.PDFRect 0 0 600 400) $
-    forM_ js imagePage
+jpegsToPDF jpegs pdf = let
+  inch i = round $ (i :: Rational) * 72
+  pageWidth = inch 8.5
+  pageHeight = inch 11
+  in withCString "" $ \mt -> do
+    bracket (pdf_create_nostruct pageWidth pageHeight mt mt mt mt mt mt) pdf_destroy $ \doc -> do
+      let check fn = fn >>= \ret -> case ret of 0 -> return (); e -> error $ show e
+      forM_ jpegs $ \jpeg@(P.Image w h _) -> do
+        let thisHeight = round $ (toRational h / toRational w) * toRational pageWidth
+        page <- pdf_append_page doc
+        check $ pdf_page_set_size doc page pageWidth thisHeight
+        let bs = encodeJpegAtQuality 100 $ convertImage jpeg
+        check $ B.useAsCStringLen (BL.toStrict bs) $ \(p, len) -> pdf_add_jpeg_direct
+          doc page
+          (fromIntegral w) (fromIntegral h)
+          0 0
+          pageWidth thisHeight
+          (castPtr p) (fromIntegral len)
+      -- TODO make non-ascii filename work on Windows with getShortPathName
+      check $ withCString pdf $ pdf_save doc
