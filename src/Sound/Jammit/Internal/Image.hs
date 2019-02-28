@@ -3,28 +3,28 @@ module Sound.Jammit.Internal.Image
 , jpegsToPDF
 ) where
 
-import qualified Codec.Picture                as P
-import           Codec.Picture.Types          (convertImage)
-import           Control.Monad                (forM_, replicateM)
-import           Control.Monad.IO.Class       (MonadIO(..))
-import qualified Data.ByteString.Lazy         as BL
-import qualified Data.ByteString         as B
-import           Data.Conduit                 ((.|))
-import           Data.Conduit.List (consume)
-import qualified Data.Conduit                 as C
-import           Data.Maybe                   (catMaybes)
-import qualified Data.Vector.Storable         as V
-import Foreign
-import Foreign.C
-import Control.Exception (bracket)
-import Codec.Picture.Jpg (encodeJpegAtQuality)
+import qualified Codec.Picture          as P
+import           Codec.Picture.Jpg      (encodeJpegAtQuality)
+import           Codec.Picture.Types    (convertImage)
+import           Control.Exception      (bracket)
+import           Control.Monad          (forM_, replicateM)
+import           Control.Monad.IO.Class (MonadIO (..))
+import qualified Data.ByteString        as B
+import qualified Data.ByteString.Lazy   as BL
+import           Data.Conduit           ((.|))
+import qualified Data.Conduit           as C
+import           Data.Conduit.List      (consume)
+import           Data.Maybe             (catMaybes)
+import qualified Data.Vector.Storable   as V
+import           Foreign
+import           Foreign.C
 
-data PDFInfo
+-- data PDFInfo
 data PDFDoc
 data PDFObject
 
-foreign import ccall unsafe "pdf_create"
-  pdf_create :: CInt -> CInt -> Ptr PDFInfo -> IO (Ptr PDFDoc)
+-- foreign import ccall unsafe "pdf_create"
+--   pdf_create :: CInt -> CInt -> Ptr PDFInfo -> IO (Ptr PDFDoc)
 
 foreign import ccall unsafe "pdf_create_nostruct"
   pdf_create_nostruct :: CInt -> CInt
@@ -37,8 +37,8 @@ foreign import ccall unsafe "pdf_append_page"
 foreign import ccall unsafe "pdf_page_set_size"
   pdf_page_set_size :: Ptr PDFDoc -> Ptr PDFObject -> CInt -> CInt -> IO CInt
 
-foreign import ccall unsafe "pdf_add_jpeg"
-  pdf_add_jpeg :: Ptr PDFDoc -> Ptr PDFObject -> CInt -> CInt -> CInt -> CInt -> CString -> IO CInt
+-- foreign import ccall unsafe "pdf_add_jpeg"
+--   pdf_add_jpeg :: Ptr PDFDoc -> Ptr PDFObject -> CInt -> CInt -> CInt -> CInt -> CString -> IO CInt
 
 foreign import ccall unsafe "pdf_add_jpeg_direct"
   pdf_add_jpeg_direct
@@ -55,6 +55,9 @@ foreign import ccall unsafe "pdf_save"
 
 foreign import ccall unsafe "pdf_destroy"
   pdf_destroy :: Ptr PDFDoc -> IO ()
+
+foreign import ccall unsafe "pdf_get_err"
+  pdf_get_err :: Ptr PDFDoc -> Ptr CInt -> IO CString
 
 loadPNG :: FilePath -> IO (P.Image P.PixelRGB8)
 loadPNG fp = do
@@ -139,7 +142,11 @@ jpegsToPDF jpegs pdf = let
   pageHeight = inch 11
   in withCString "" $ \mt -> do
     bracket (pdf_create_nostruct pageWidth pageHeight mt mt mt mt mt mt) pdf_destroy $ \doc -> do
-      let check fn = fn >>= \ret -> case ret of 0 -> return (); e -> error $ show e
+      let check fn = fn >>= \ret -> case ret of
+            0 -> return ()
+            e -> do
+              str <- pdf_get_err doc nullPtr >>= peekCString
+              error $ "PDF generation error (" <> show e <> "): " <> str
       forM_ jpegs $ \jpeg@(P.Image w h _) -> do
         let thisHeight = round $ (toRational h / toRational w) * toRational pageWidth
         page <- pdf_append_page doc

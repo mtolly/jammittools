@@ -90,6 +90,7 @@
  * y    curveto.
  */
 
+// MT: commented this out, breaks things for some reason
 // #define _POSIX_SOURCE /* For localtime_r */
 #include <ctype.h>
 #include <errno.h>
