@@ -90,6 +90,7 @@ partsToPages
   :: [([FilePath], Integer)] -- ^ [(images, system height)]
   -> Int -- ^ systems per page
   -> IO [P.Image P.PixelRGB8]
+partsToPages []    _ = return []
 partsToPages parts n = let
   sources = map (\(imgs, h) -> pngChunks (fromIntegral h) imgs) parts
   in C.runConduit $ C.sequenceSources sources .| chunksToPages n .| consume
