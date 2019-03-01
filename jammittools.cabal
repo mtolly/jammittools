@@ -48,6 +48,9 @@ library
     , vector        >= 0.10.12.2 && < 0.13
     , conduit-audio >= 0.1       && < 0.3
     , resourcet     >= 1.1.7.2   && < 1.3
+  if os(windows)
+    build-depends: Win32
+    cpp-options: -DWINDOWS
   ghc-options:      -Wall -O2
   c-sources:
     cbits/ima4.c

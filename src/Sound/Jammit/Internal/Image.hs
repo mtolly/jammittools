@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Sound.Jammit.Internal.Image
 ( partsToPages
 , jpegsToPDF
@@ -18,6 +19,10 @@ import           Data.Maybe             (catMaybes)
 import qualified Data.Vector.Storable   as V
 import           Foreign
 import           Foreign.C
+
+#ifdef WINDOWS
+import           System.Win32.Info      (getShortPathName)
+#endif
 
 -- data PDFInfo
 data PDFDoc
@@ -159,5 +164,10 @@ jpegsToPDF jpegs pdf = let
           0 0
           pageWidth thisHeight
           (castPtr p) (fromIntegral len)
-      -- TODO make non-ascii filename work on Windows with getShortPathName
-      check $ withCString pdf $ pdf_save doc
+#ifdef WINDOWS
+      B.writeFile pdf B.empty -- file has to exist before you get short name
+      pdf' <- getShortPathName pdf
+#else
+      let pdf' = pdf
+#endif
+      check $ withCString pdf' $ pdf_save doc
