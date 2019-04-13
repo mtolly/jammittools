@@ -23,6 +23,7 @@ Bug-Reports:        https://github.com/mtolly/jammittools/issues
 Extra-Source-Files:
   README.md
   CHANGELOG.md
+  cbits/pdfgen.h
 
 library
   exposed-modules:
