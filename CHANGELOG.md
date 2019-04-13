@@ -1,3 +1,8 @@
+## v0.5.5.2
+
+  * Supports GHC 8.6
+  * Replaced `HPDF` with C library `pdfgen`
+
 ## v0.5.5.1
 
   * Switched to new `conduit` syntax
