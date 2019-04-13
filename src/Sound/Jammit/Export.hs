@@ -17,7 +17,6 @@ module Sound.Jammit.Export
 
 import           Control.Applicative          (liftA2)
 import           Control.Monad                (forM, forever)
-import           Control.Monad.Fail           (MonadFail)
 import           Control.Monad.Trans.Resource (MonadResource, runResourceT)
 import           Data.Char                    (toLower)
 import qualified Data.Conduit.Audio           as A
@@ -83,7 +82,7 @@ getSheetParts lib = do
         else [sheet]
     _ -> []
 
-audioSource :: (MonadResource m, MonadFail m) => FilePath -> IO (A.AudioSource m Int16)
+audioSource :: (MonadResource m) => FilePath -> IO (A.AudioSource m Int16)
 audioSource fp = let
   -- These are hacks that make one instrument line up with the rest of a song.
   timingHacks =
